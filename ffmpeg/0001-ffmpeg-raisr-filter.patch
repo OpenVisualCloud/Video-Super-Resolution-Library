@@ -1,0 +1,77 @@
+From 4a10f747179b9de6e97696dd0c1b5d539d287e0e Mon Sep 17 00:00:00 2001
+From: Anand Bodas <anand.v.bodas@intel.com>
+Date: Thu, 14 Oct 2021 18:15:54 +0530
+Subject: [PATCH] ffmpeg raisr filter
+
+Signed-off-by: Anand Bodas <anand.v.bodas@intel.com>
+Signed-off-by: Jun Tian <jun.tian@intel.com>
+---
+ configure                |  12 ++
+ libavfilter/Makefile     |   1 +
+ libavfilter/allfilters.c |   1 +
+ 3 files changed, 14 insertions(+)
+
+diff --git a/configure b/configure
+index d7a3f507e8..befaed4ecf 100755
+--- a/configure
++++ b/configure
+@@ -241,6 +241,7 @@ External library support:
+   --enable-libgsm          enable GSM de/encoding via libgsm [no]
+   --enable-libiec61883     enable iec61883 via libiec61883 [no]
+   --enable-libilbc         enable iLBC de/encoding via libilbc [no]
++  --enable-libipp          enable Intel IPP libary based scalin
+   --enable-libjack         enable JACK audio sound server [no]
+   --enable-libklvanc       enable Kernel Labs VANC processing [no]
+   --enable-libkvazaar      enable HEVC encoding via libkvazaar [no]
+@@ -1783,6 +1784,7 @@ EXTERNAL_LIBRARY_LIST="
+     libgsm
+     libiec61883
+     libilbc
++    libipp
+     libjack
+     libklvanc
+     libkvazaar
+@@ -6414,6 +6416,16 @@ enabled libopus           && {
+         require_pkg_config libopus opus opus_multistream.h opus_multistream_surround_encoder_create
+     }
+ }
++if enabled libipp; then
++   ipp_header_for_check='ippcore.h'
++   case $target_os in
++       mingw32*|mingw64*)
++           ipp_header_for_check='_mingw.h ippcore.h'
++           ;;
++   esac
++   check_lib libipp "$ipp_header_for_check" ippInit -Wl,--start-group -lippi -lipps -lippcore -lippvm -Wl,--end-group ||
++   die "ERROR: Intel IPP not found"
++fi
+ enabled libpulse          && require_pkg_config libpulse libpulse pulse/pulseaudio.h pa_context_new
+ enabled librabbitmq       && require_pkg_config librabbitmq "librabbitmq >= 0.7.1" amqp.h amqp_new_connection
+ enabled librav1e          && require_pkg_config librav1e "rav1e >= 0.4.0" rav1e.h rav1e_context_new
+diff --git a/libavfilter/Makefile b/libavfilter/Makefile
+index b2c254ea67..66f93cef13 100644
+--- a/libavfilter/Makefile
++++ b/libavfilter/Makefile
+@@ -376,6 +376,7 @@ OBJS-$(CONFIG_PSEUDOCOLOR_FILTER)            += vf_pseudocolor.o
+ OBJS-$(CONFIG_PSNR_FILTER)                   += vf_psnr.o framesync.o
+ OBJS-$(CONFIG_PULLUP_FILTER)                 += vf_pullup.o
+ OBJS-$(CONFIG_QP_FILTER)                     += vf_qp.o
++OBJS-$(CONFIG_RAISR_FILTER)                  += vf_raisr.o
+ OBJS-$(CONFIG_RANDOM_FILTER)                 += vf_random.o
+ OBJS-$(CONFIG_READEIA608_FILTER)             += vf_readeia608.o
+ OBJS-$(CONFIG_READVITC_FILTER)               += vf_readvitc.o
+diff --git a/libavfilter/allfilters.c b/libavfilter/allfilters.c
+index 0872c6e0f2..50a90054ba 100644
+--- a/libavfilter/allfilters.c
++++ b/libavfilter/allfilters.c
+@@ -359,6 +359,7 @@ extern AVFilter ff_vf_pseudocolor;
+ extern AVFilter ff_vf_psnr;
+ extern AVFilter ff_vf_pullup;
+ extern AVFilter ff_vf_qp;
++extern AVFilter ff_vf_raisr;
+ extern AVFilter ff_vf_random;
+ extern AVFilter ff_vf_readeia608;
+ extern AVFilter ff_vf_readvitc;
+-- 
+2.17.1
+

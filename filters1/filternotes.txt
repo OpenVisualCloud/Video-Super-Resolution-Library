@@ -1,0 +1,3 @@
+1. Filters trained on 5000 images of coco_val with bicubic degradation
+2. Angle=24 Strength=3 Coherence=3 setting for both filters
+3. Same filters for 1st and 2nd pass

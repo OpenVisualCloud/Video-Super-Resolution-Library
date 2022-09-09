@@ -1,0 +1,17 @@
+/**
+ * Intel Library for Video Super Resolution
+ *
+ * Copyright (c) 2022 Intel Corporation
+ * All rights reserved.
+ */
+
+#pragma once
+
+// API Version
+#define RAISR_VERSION_MAJOR (@RAISR_VERSION_MAJOR@)
+#define RAISR_VERSION_MINOR (@RAISR_VERSION_MINOR@)
+
+#define RAISR_CHECK_VERSION(major, minor)                                \
+    (RAISR_VERSION_MAJOR > (major) ||                                    \
+    (RAISR_VERSION_MAJOR == (major) && RAISR_VERSION_MINOR > (minor)) || \
+    (RAISR_VERSION_MAJOR == (major) && RAISR_VERSION_MINOR == (minor))
