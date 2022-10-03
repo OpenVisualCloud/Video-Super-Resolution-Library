@@ -46,19 +46,3 @@ add_subdirectory(Library)
 # Raisr Sample app
 include_directories(${PROJECT_SOURCE_DIR}/Library/)
 
-# Requires OpenCV
-    find_package(OpenCV 4.0.0 REQUIRED)
-# Show a message with the opencv version detected
-    message("OpenCV version : ${OpenCV_VERSION}")
-# Add the paths to the include directories/to the header files
-    include_directories(${OpenCV_INCLUDE_DIRS})
-
-# Requires Pythons Libs
-    find_package(PythonLibs REQUIRED)
-# Set Numpy dependency
-    set(PYTHON_INCLUDE_DIRS ${PYTHON_INCLUDE_DIRS} /usr/local/lib/python2.7/dist-packages/numpy/core/include)
-    include_directories(${PYTHON_INCLUDE_DIRS})
-
-# NOTE: enable below line to build python library
-    #target_link_libraries(py_raisr ${PYTHON_LIBRARIES} ${OpenCV_LIBS} raisr)
-
