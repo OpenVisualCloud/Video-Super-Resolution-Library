@@ -8,11 +8,12 @@ To build this project you will need:
 - Intel Xeon hardware which supports Intel AVX512 (Skylake generation or later)
 - Compiler (clang++, g++) 
 - Cmake version 3.12 or later 
-- Intel® Integrated Performance Primitives (Intel® IPP)
+- Intel® Integrated Performance Primitives (Intel® IPP) (Stand-Alone Version is the minimum requirement)
 - (optional) libx264, libx265, zlib1g-dev
 
 ## Install Intel IPP
-https://www.intel.com/content/www/us/en/developer/tools/oneapi/ipp.html \
+Standalone version of IPP (minimum requirement): https://www.intel.com/content/www/us/en/developer/articles/tool/oneapi-standalone-components.html#ipp \
+Alternatively, install IPP as part of oneAPI Base Toolkit: https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html \
 Add below lines to `~/.bash_profile` which sets IPP env. \
     `source /opt/intel/oneapi/ipp/latest/env/vars.sh` \
     `. ~/.bashrc` \
