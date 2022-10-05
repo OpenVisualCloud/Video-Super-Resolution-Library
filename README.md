@@ -53,8 +53,8 @@ To build the library without building the docker image, run
 `git clone https://github.com/FFmpeg/FFmpeg ffmpeg` \
 `cd ffmpeg`
 
-### Checkout n4.4 tag
-`git checkout -b [your branch name] n4.4`
+### Checkout FFmpeg version 4.4 tag
+`git checkout release/4.4`
 
 ### Copy vf_raisr.c to ffmpeg libavfilter folder
 `cp ../ilvsr-library/ffmpeg/vf_raisr.c libavfilter/`
