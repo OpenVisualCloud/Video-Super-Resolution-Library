@@ -18,6 +18,34 @@ Add below line to `~/.bash_profile` which sets IPP env. \
     `source /opt/intel/oneapi/ipp/latest/env/vars.sh` \
 Then `source ~/.bash_profile`
 
+## Install dependent libraries x264 and x265
+The x264/x265 libraries can be installed via apt on Ubuntu OS or built and installed from source code.
+
+### Install x264/x265 via apt on Ubuntu OS(Option-1)
+`apt-get update && apt-get install -y libx264-dev libx265-dev nasm`
+
+### Build and install x264/x265 from source code(Option-2)
+
+#### Build and install x264 
+
+`git clone https://github.com/mirror/x264 -b stable --depth 1` \
+`cd x264` \
+`./configure --prefix=/usr/local --libdir=/usr/local/lib --enable-shared` \
+`make -j$(nproc)` \
+`sudo make install`
+
+#### Build and install x265
+
+`wget -O - https://github.com/videolan/x265/archive/3.4.tar.gz | tar xz` \
+`cd x265-3.4/build/linux` \
+`cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DLIB_INSTALL_DIR=/usr/local/lib ../../source` \
+`make -j$(nproc)` \
+`sudo make install`
+
+#### Set PKG_CONFIG_PATH enviroment variable
+The `.pc` files of x264 and x265 libraries are in `/usr/local/lib/pkgconfig`, add the path to the `PKG_CONFIG_PATH` environment variable. \
+`export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig/:$PKG_CONFIG_PATH`
+
 # Use FFmpeg RAISR plugin
 
 ## Build and install the Intel® Library for VSR with Docker
@@ -63,12 +91,12 @@ To build the library without building the docker image, run \
 
 ### Configure FFmpeg
 When `DCMAKE_INSTALL_PREFIX` isn't used, the ffmpeg configure command is as: \
-`./configure --enable-libipp --extra-cflags="-fopenmp" --extra-ldflags=-fopenmp --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' --enable-cross-compile`
+`./configure --enable-libipp --extra-cflags="-fopenmp" --extra-ldflags=-fopenmp --enable-gpl --enable-libx264 --enable-libx265 --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' --enable-cross-compile`
 
 When `DCMAKE_INSTALL_PREFIX` is used, please add the below line to the ffmpeg configure command: \
 `--extra-cflags=="-fopenmp -I../Video-Super-Resolution-Library/install/include/" --extra-ldflags="-fopenmp -L../Video-Super-Resolution-Library/install/lib/"` \
 The ffmmpeg confiure command is as: \
-`./configure --enable-libipp --extra-cflags="-fopenmp -I../Video-Super-Resolution-Library/install/include/" --extra-ldflags="-fopenmp -L../Video-Super-Resolution-Library/install/lib/" --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' --enable-cross-compile`
+`./configure --enable-libipp --extra-cflags="-fopenmp -I../Video-Super-Resolution-Library/install/include/" --extra-ldflags="-fopenmp -L../Video-Super-Resolution-Library/install/lib/" --enable-gpl --enable-libx264 --enable-libx265 --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' --enable-cross-compile`
 
 ### Build FFmpeg
 `make clean` \
