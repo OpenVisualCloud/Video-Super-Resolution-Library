@@ -527,8 +527,8 @@ static void CTCountOfBitsChanged_AVX2(float *LRImage, float *HRImage, float *out
             int highbit = 0x80000000;
             const __m256i highbit_epi32 = _mm256_setr_epi32(highbit, highbit, highbit, highbit, highbit, highbit, highbit, highbit);
 
-            __m256i cmp_lr_epi32 = compare3x3_ps(row_lr_f, center_lr_f, highbit_epi32);
-            __m256i cmp_hr_epi32 = compare3x3_ps(row_hr_f, center_hr_f, highbit_epi32);
+            __m256i cmp_lr_epi32 = compare3x3_AVX256_32f(row_lr_f, center_lr_f, highbit_epi32);
+            __m256i cmp_hr_epi32 = compare3x3_AVX256_32f(row_hr_f, center_hr_f, highbit_epi32);
 
             // hammingDistance = abs( lr_cmp - hr_cmp )
             __m256i cmp_epi32 = _mm256_abs_epi32(_mm256_sub_epi32(cmp_lr_epi32, cmp_hr_epi32));
@@ -563,8 +563,8 @@ static void CTCountOfBitsChangedSegment_AVX2(float *LRImage, float *HRImage, con
             int highbit = 0x80000000;
             const __m256i highbit_epi32 = _mm256_setr_epi32(highbit, highbit, highbit, highbit, highbit, highbit, highbit, highbit);
 
-            __m256i cmp_lr_epi32 = compare3x3_ps(row_lr_f, center_lr_f, highbit_epi32);
-            __m256i cmp_hr_epi32 = compare3x3_ps(row_hr_f, center_hr_f, highbit_epi32);
+            __m256i cmp_lr_epi32 = compare3x3_AVX256_32f(row_lr_f, center_lr_f, highbit_epi32);
+            __m256i cmp_hr_epi32 = compare3x3_AVX256_32f(row_hr_f, center_hr_f, highbit_epi32);
 
             // hammingDistance = abs( lr_cmp - hr_cmp )
             __m256i cmp_epi32 = _mm256_abs_epi32(_mm256_sub_epi32(cmp_lr_epi32, cmp_hr_epi32));
@@ -1184,7 +1184,16 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                         // CT-Blending, CTRandomness
                         if (blendingMode == Randomness)
                         {
-                            census = CTRandomness_AVX512_32f(pSeg32f, cols, rOffset, c, pix);
+                            if (gAsmType == AVX2)
+                                census = CTRandomness_AVX256_32f(pSeg32f, cols, rOffset, c, pix);
+                            else if (gAsmType == AVX512)
+                                census = CTRandomness_AVX512_32f(pSeg32f, cols, rOffset, c, pix);
+                            else
+                            {
+                                std::cout << "expected avx512 or avx2, but got " << gAsmType << std::endl;
+                                return RNLErrorBadParameter;
+                            }
+
                             float weight = (float)census / (float)CTnumberofPixel;
                             // position in the whole image: r * cols + c + pix
                             float val = weight * curPix + (1 - weight) * pSeg32f[rOffset * cols + c + pix];

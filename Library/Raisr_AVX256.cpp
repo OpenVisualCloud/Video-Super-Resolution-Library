@@ -10,7 +10,7 @@
 
 
 
-inline __m256i compare3x3_ps(__m256 a, __m256 b, __m256i highbit_epi32)
+inline __m256i compare3x3_AVX256_32f(__m256 a, __m256 b, __m256i highbit_epi32)
 {
     // compare if neighbors < centerpixel, toggle bit in mask if true
     // when cmp_ps is true, it returns 0x7fffff (-nan).  When we convert that to int, it is 0x8000 0000
@@ -42,7 +42,7 @@ int inline CTRandomness_AVX256_32f(float *inYUpscaled32f, int cols, int r, int c
     int highbit = 0x80000000;
     const __m256i highbit_epi32 = _mm256_setr_epi32(highbit, highbit, highbit, highbit, highbit, highbit, highbit, highbit);
 
-    __m256i cmp_epi32 = compare3x3_ps(row_f, center_f, highbit_epi32);
+    __m256i cmp_epi32 = compare3x3_AVX256_32f(row_f, center_f, highbit_epi32);
 
     // count # of bits in mask
     census_count += sumitup_256_epi32(cmp_epi32);
