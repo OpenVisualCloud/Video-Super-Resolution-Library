@@ -57,3 +57,32 @@ inline float sumitup_ps_256(__m256 acc)
     const __m128 r1 = _mm_add_ss(r2, _mm_movehdup_ps(r2));
     return _mm_cvtss_f32(r1);
 }
+
+// AVX2 version: for now, gPatchSize must be <= 16 because we can work with up to 16 float32s in two AVX256 registers.
+float inline DotProdPatch_AVX256_32f(const float *buf, const float *filter)
+{
+    __m256 a1_ps = _mm256_load_ps(buf);
+    __m256 b1_ps = _mm256_load_ps(filter);
+    __m256 a2_ps = _mm256_load_ps(buf+8);
+    __m256 b2_ps = _mm256_load_ps(filter+8);
+
+    __m256 sum1 = _mm256_mul_ps(a1_ps, b1_ps);
+    __m256 sum2 = _mm256_mul_ps(a2_ps, b2_ps);
+
+#pragma unroll
+    for (int i = 1; i < 8; i++)
+    {
+        a1_ps = _mm256_load_ps(buf + i * 16);
+        a2_ps = _mm256_load_ps(buf + i * 16 + 8);
+        b1_ps = _mm256_load_ps(filter + i * 16);
+        b2_ps = _mm256_load_ps(filter + i * 16 + 8);
+
+        // compute dot prod using fmadd
+        sum1 = _mm256_fmadd_ps(a1_ps, b1_ps, sum1);
+        sum2 = _mm256_fmadd_ps(a2_ps, b2_ps, sum2);
+    }
+
+    // sumitup adds all 16 float values in sum(zmm) and returns a single float value
+    return  sumitup_ps_256(_mm256_add_ps(sum1, sum2));
+}
+

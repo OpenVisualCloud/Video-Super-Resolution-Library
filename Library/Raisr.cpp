@@ -1165,7 +1165,16 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                 {
                     if (likely(c + pix < cols - gLoopMargin))
                     {
-                        float curPix = DotProdPatch_AVX512_32f(pixbuf[pix], fbase[pix]);
+                        float curPix;
+                        if (gAsmType == AVX2)
+                            curPix  = DotProdPatch_AVX256_32f(pixbuf[pix], fbase[pix]);
+                        else if (gAsmType == AVX512)
+                            curPix  = DotProdPatch_AVX512_32f(pixbuf[pix], fbase[pix]);
+                        else 
+                        {
+                            std::cout << "expected avx512 or avx2, but got " << gAsmType << std::endl;
+                            return RNLErrorBadParameter;
+                        }
                         if ((gBitDepth == 8 && curPix > gMin8bit && curPix < gMax8bit) ||
                             (gBitDepth != 8 && curPix > gMin16bit && curPix < gMax16bit))
                             pRaisr32f[rOffset * cols + c + pix] = curPix;
