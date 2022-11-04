@@ -6,6 +6,11 @@
  */
 
 #include "Raisr.h"
+#include "Raisr_globals.h"
+#include "Raisr_AVX256.h"
+#include "Raisr_AVX512.h"
+#include "Raisr_AVX256.cpp"
+#include "Raisr_AVX512.cpp"
 #include <fstream>
 #include <iterator>
 #include <iostream>
@@ -23,235 +28,6 @@
 #endif
 
 //#define MEASURE_TIME
-
-/************************************************************
- *   const variables
- ************************************************************/
-#define MAX8BIT_FULL  0xff
-#define MAX10BIT_FULL 0x3ff
-#define MAX16BIT_FULL 0xffff
-#define MIN_FULL 0
-
-#define MAX8BIT_VIDEO 235
-#define MIN8BIT_VIDEO 16
-#define MAX10BIT_VIDEO 940
-#define MIN10BIT_VIDEO 64
-
-const float PI = 3.141592653;
-// the sigma value of the Gaussian filter
-const float sigma = 2.0f;
-// CT blending parameters
-const int CTwindowSize = 3;
-const int CTnumberofPixel = CTwindowSize * CTwindowSize - 1;
-const int CTmargin = CTwindowSize >> 1;
-const int gHashingExpand = CTmargin + 1; // Segment is again expanded by CTmargin so that all the rows in the segment can be processed by CTCountOfBitsChanged(). "+1" is to make sure the resize zone is even.
-static unsigned int gRatio;
-static ASMType gAsmType;
-static unsigned int gBitDepth;
-
-// Process multiple columns in each pass of the loop
-// This is a tunable, may depend on cache size of a platform
-// This also results in additional memory requirements
-const int unrollSizeImageBased = 4;
-// unrollSizePatchBased should be at least 2
-const int unrollSizePatchBased = 8;
-
-/************************************************************
- *   preprocessor directives
- ************************************************************/
-//#define USE_ATAN2_APPROX
-#define ENABLE_PREFETCH
-// Split memcpy of a column into the for loop in RNLProcess
-// This should result in lower working set for memory
-#define SPLIT_MEMCPY
-
-#define BYTES_16BITS 2
-#define likely(x)   __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
-
-// Default method is bilinear upscaling. To enable other, enable the option below
-// If both are options are commented out, bilinear method is used for upscaling
-//#define USE_BICUBIC
-//#define USE_LANCZOS
-#ifdef USE_BICUBIC
-#define IPP_RESIZE_TYPE ippCubic
-#define IPPRInit(depth) ippiResizeCubicInit_##depth##u
-#define IPPResize(depth) ippiResizeCubic_##depth##u_C1R
-#else
-#ifdef USE_LANCZOS
-#define IPP_RESIZE_TYPE ippLanczos
-#define IPPRInit(depth) ippiResizeLanczosInit_##depth##u
-#define IPPResize(depth) ippiResizeLanczos_##depth##u_C1R
-#else
-#define IPP_RESIZE_TYPE ippLinear
-#define IPPRInit(depth) ippiResizeLinearInit_##depth##u
-#define IPPResize(depth) ippiResizeLinear_##depth##u_C1R
-#endif
-#endif
-
-/************************************************************
- *   data structures
- ************************************************************/
-// row range in HR [startRow, endRow)
-/** processing zones:                                     cols
- Cheap upscale zone             |    .....................................................
-                                |    ..................gResizeExpand......................
-                                |    .....................................................
- Raisr hashing zone       |     |    ******************gHashingExpand*********************
- Blending zone      |     |     |    #####################################################
-                    |     |     |    #####################################################
-                    |     |     |    #####################################################
-                          |     |    *****************************************************
-                                |    .....................................................
-                                |    .....................................................
-                                |    .....................................................
-*/
-struct segZone
-{
-    // zone to perform cheap up scale
-    int scaleStartRow;
-    int scaleEndRow;
-    // zone to perform RAISR refine
-    int raisrStartRow;
-    int raisrEndRow;
-    // zone to perform CT-Blending ==> composed final output
-    int blendingStartRow;
-    int blendingEndRow;
-    // cheap upscaled segment, hold 8/10/16bit data
-    Ipp8u *inYUpscaled;
-    // cheap upscaled segment in 32f
-    float *inYUpscaled32f;
-    // raiser hashing output in 32f, first copy inYUpscaled32f, then refine pixel value
-    float *raisr32f;
-};
-
-struct ippContext
-{
-    IppiResizeSpec_32f **specY;
-    IppiResizeSpec_32f *specUV;
-
-    segZone *segZones[2]; // need 2d segZones for the resize is in the 2nd pass
-    Ipp8u **pbufferY;     // working buffer is always 8u
-    Ipp8u *pbufferUV;     // working buffer is always 8u
-};
-
-enum class CHANNEL
-{
-    NONE = 0,
-    Y,
-    UV
-};
-
-/************************************************************
- *   global variables
- ************************************************************/
-// IPP context
-ippContext gIppCtx;
-
-// Quantization values
-static unsigned int gQuantizationAngle;
-static unsigned int gQuantizationStrength;
-static unsigned int gQuantizationCoherence;
-static float gQAngle;
-
-// patch size related globals
-static unsigned int gPatchSize;
-static unsigned int gPatchMargin;
-static unsigned int gLoopMargin;
-static unsigned int gResizeExpand; // Segment is expanded by gLoopMargin so that the whole patch area is covered. Expand by 2 to avoid border that ipp resize modified.
-static unsigned int g64AlinedgPatchAreaSize;
-
-// vectors to hold trained data
-std::vector<float> gQStr;
-std::vector<float> gQCoh;
-std::vector<std::vector<float *>> gFilterBuckets;
-std::vector<float> gQStr2;
-std::vector<float> gQCoh2;
-std::vector<std::vector<float *>> gFilterBuckets2;
-
-// contiguous memory to hold all filters
-float *gFilterBuffer;
-float *gFilterBuffer2;
-VideoDataType *gIntermediateY; // Buffer to hold intermediate result for two pass
-volatile int threadStatus[120];
-
-// threading related used in patch-based approach
-static int gThreadCount = 0;
-ThreadPool *gPool = nullptr;
-
-// pointer to gaussian filter allocated dynamiclly
-static float *gPGaussian = nullptr;
-
-// gPasses = 1 means one pass processing, gPasses = 2 means two pass processing.
-static int gPasses = 1;
-static int gTwoPassMode = 1;
-
-// color range
-static unsigned char gMin8bit;
-static unsigned char gMax8bit;
-static unsigned short gMin16bit;
-static unsigned short gMax16bit;
-
-// pre-caculated gaussian filter.
-// gaussian kernel (arrary with size gPatchSize * gPatchSize).
-// normalization factor for 8/10/16 bits. 2.0 is from gradient compute.
-#define NF_8  (1.0f / (255.0f   * 255.0f   * 2.0f * 2.0f))
-#define NF_10 (1.0f / (1023.0f  * 1023.0f  * 2.0f * 2.0f))
-#define NF_16 (1.0f / (65535.0f * 65535.0f * 2.0f * 2.0f))
-
-// createGaussianKernel()
-static float gGaussian2DOriginal[11][16] = {
-    {0.0, 7.76554e-05,  0.000239195, 0.0005738, 0.001072,  0.00155975,0.00176743,0.00155975,0.001072,  0.0005738, 0.000239195,7.76554e-05, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, 0.000239195,  0.000736774, 0.00176743,0.00330199,0.00480437,0.00544406,0.00480437,0.00330199,0.00176743,0.000736774,0.000239195, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, 0.0005738,    0.00176743,  0.00423984,0.00792107,0.0115251, 0.0130596, 0.0115251, 0.00792107,0.00423984,0.00176743, 0.0005738,   0.0, 0.0, 0.0, 0.0 },
-    {0.0, 0.001072,     0.00330199,  0.00792107,0.0147985, 0.0215317, 0.0243986, 0.0215317, 0.0147985, 0.00792107,0.00330199, 0.001072,    0.0, 0.0, 0.0, 0.0 },
-    {0.0, 0.00155975,   0.00480437,  0.0115251, 0.0215317, 0.0313284, 0.0354998, 0.0313284, 0.0215317, 0.0115251, 0.00480437, 0.00155975,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, 0.00176743,   0.00544406,  0.0130596, 0.0243986, 0.0354998, 0.0402265, 0.0354998, 0.0243986, 0.0130596, 0.00544406, 0.00176743,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, 0.00155975,   0.00480437,  0.0115251, 0.0215317, 0.0313284, 0.0354998, 0.0313284, 0.0215317, 0.0115251, 0.00480437, 0.00155975,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, 0.001072,     0.00330199,  0.00792107,0.0147985, 0.0215317, 0.0243986, 0.0215317, 0.0147985, 0.00792107,0.00330199, 0.001072,    0.0, 0.0, 0.0, 0.0 },
-    {0.0, 0.0005738,    0.00176743,  0.00423984,0.00792107,0.0115251, 0.0130596, 0.0115251, 0.00792107,0.00423984,0.00176743, 0.0005738,   0.0, 0.0, 0.0, 0.0 },
-    {0.0, 0.000239195,  0.000736774, 0.00176743,0.00330199,0.00480437,0.00544406,0.00480437,0.00330199,0.00176743,0.000736774,0.000239195, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, 7.76554e-05,  0.000239195, 0.0005738, 0.001072,  0.00155975,0.00176743,0.00155975,0.001072,  0.0005738, 0.000239195,7.76554e-05, 0.0, 0.0, 0.0, 0.0 }};
-
-// createGaussianKernel() * (1.0/255.0*2.0) * (1.0/255.0*2.0)
-static float gGaussian2D8bit[11][16] = {
-    {0.0, NF_8*7.76554e-05,  NF_8*0.000239195, NF_8*0.0005738, NF_8*0.001072,  NF_8*0.00155975,NF_8*0.00176743,NF_8*0.00155975,NF_8*0.001072,  NF_8*0.0005738, NF_8*0.000239195,NF_8*7.76554e-05, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_8*0.000239195,  NF_8*0.000736774, NF_8*0.00176743,NF_8*0.00330199,NF_8*0.00480437,NF_8*0.00544406,NF_8*0.00480437,NF_8*0.00330199,NF_8*0.00176743,NF_8*0.000736774,NF_8*0.000239195, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_8*0.0005738,    NF_8*0.00176743,  NF_8*0.00423984,NF_8*0.00792107,NF_8*0.0115251, NF_8*0.0130596, NF_8*0.0115251, NF_8*0.00792107,NF_8*0.00423984,NF_8*0.00176743, NF_8*0.0005738,   0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_8*0.001072,     NF_8*0.00330199,  NF_8*0.00792107,NF_8*0.0147985, NF_8*0.0215317, NF_8*0.0243986, NF_8*0.0215317, NF_8*0.0147985, NF_8*0.00792107,NF_8*0.00330199, NF_8*0.001072,    0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_8*0.00155975,   NF_8*0.00480437,  NF_8*0.0115251, NF_8*0.0215317, NF_8*0.0313284, NF_8*0.0354998, NF_8*0.0313284, NF_8*0.0215317, NF_8*0.0115251, NF_8*0.00480437, NF_8*0.00155975,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_8*0.00176743,   NF_8*0.00544406,  NF_8*0.0130596, NF_8*0.0243986, NF_8*0.0354998, NF_8*0.0402265, NF_8*0.0354998, NF_8*0.0243986, NF_8*0.0130596, NF_8*0.00544406, NF_8*0.00176743,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_8*0.00155975,   NF_8*0.00480437,  NF_8*0.0115251, NF_8*0.0215317, NF_8*0.0313284, NF_8*0.0354998, NF_8*0.0313284, NF_8*0.0215317, NF_8*0.0115251, NF_8*0.00480437, NF_8*0.00155975,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_8*0.001072,     NF_8*0.00330199,  NF_8*0.00792107,NF_8*0.0147985, NF_8*0.0215317, NF_8*0.0243986, NF_8*0.0215317, NF_8*0.0147985, NF_8*0.00792107,NF_8*0.00330199, NF_8*0.001072,    0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_8*0.0005738,    NF_8*0.00176743,  NF_8*0.00423984,NF_8*0.00792107,NF_8*0.0115251, NF_8*0.0130596, NF_8*0.0115251, NF_8*0.00792107,NF_8*0.00423984,NF_8*0.00176743, NF_8*0.0005738,   0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_8*0.000239195,  NF_8*0.000736774, NF_8*0.00176743,NF_8*0.00330199,NF_8*0.00480437,NF_8*0.00544406,NF_8*0.00480437,NF_8*0.00330199,NF_8*0.00176743,NF_8*0.000736774,NF_8*0.000239195, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_8*7.76554e-05,  NF_8*0.000239195, NF_8*0.0005738, NF_8*0.001072,  NF_8*0.00155975,NF_8*0.00176743,NF_8*0.00155975,NF_8*0.001072,  NF_8*0.0005738, NF_8*0.000239195,NF_8*7.76554e-05, 0.0, 0.0, 0.0, 0.0 }};
-
-static float gGaussian2D10bit[11][16] = {
-    {0.0, NF_10*7.76554e-05,  NF_10*0.000239195, NF_10*0.0005738, NF_10*0.001072,  NF_10*0.00155975,NF_10*0.00176743,NF_10*0.00155975,NF_10*0.001072,  NF_10*0.0005738, NF_10*0.000239195,NF_10*7.76554e-05, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_10*0.000239195,  NF_10*0.000736774, NF_10*0.00176743,NF_10*0.00330199,NF_10*0.00480437,NF_10*0.00544406,NF_10*0.00480437,NF_10*0.00330199,NF_10*0.00176743,NF_10*0.000736774,NF_10*0.000239195, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_10*0.0005738,    NF_10*0.00176743,  NF_10*0.00423984,NF_10*0.00792107,NF_10*0.0115251, NF_10*0.0130596, NF_10*0.0115251, NF_10*0.00792107,NF_10*0.00423984,NF_10*0.00176743, NF_10*0.0005738,   0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_10*0.001072,     NF_10*0.00330199,  NF_10*0.00792107,NF_10*0.0147985, NF_10*0.0215317, NF_10*0.0243986, NF_10*0.0215317, NF_10*0.0147985, NF_10*0.00792107,NF_10*0.00330199, NF_10*0.001072,    0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_10*0.00155975,   NF_10*0.00480437,  NF_10*0.0115251, NF_10*0.0215317, NF_10*0.0313284, NF_10*0.0354998, NF_10*0.0313284, NF_10*0.0215317, NF_10*0.0115251, NF_10*0.00480437, NF_10*0.00155975,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_10*0.00176743,   NF_10*0.00544406,  NF_10*0.0130596, NF_10*0.0243986, NF_10*0.0354998, NF_10*0.0402265, NF_10*0.0354998, NF_10*0.0243986, NF_10*0.0130596, NF_10*0.00544406, NF_10*0.00176743,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_10*0.00155975,   NF_10*0.00480437,  NF_10*0.0115251, NF_10*0.0215317, NF_10*0.0313284, NF_10*0.0354998, NF_10*0.0313284, NF_10*0.0215317, NF_10*0.0115251, NF_10*0.00480437, NF_10*0.00155975,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_10*0.001072,     NF_10*0.00330199,  NF_10*0.00792107,NF_10*0.0147985, NF_10*0.0215317, NF_10*0.0243986, NF_10*0.0215317, NF_10*0.0147985, NF_10*0.00792107,NF_10*0.00330199, NF_10*0.001072,    0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_10*0.0005738,    NF_10*0.00176743,  NF_10*0.00423984,NF_10*0.00792107,NF_10*0.0115251, NF_10*0.0130596, NF_10*0.0115251, NF_10*0.00792107,NF_10*0.00423984,NF_10*0.00176743, NF_10*0.0005738,   0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_10*0.000239195,  NF_10*0.000736774, NF_10*0.00176743,NF_10*0.00330199,NF_10*0.00480437,NF_10*0.00544406,NF_10*0.00480437,NF_10*0.00330199,NF_10*0.00176743,NF_10*0.000736774,NF_10*0.000239195, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_10*7.76554e-05,  NF_10*0.000239195, NF_10*0.0005738, NF_10*0.001072,  NF_10*0.00155975,NF_10*0.00176743,NF_10*0.00155975,NF_10*0.001072,  NF_10*0.0005738, NF_10*0.000239195,NF_10*7.76554e-05, 0.0, 0.0, 0.0, 0.0 }};
-
-static float gGaussian2D16bit[11][16] = {
-    {0.0, NF_16*7.76554e-05,  NF_16*0.000239195, NF_16*0.0005738, NF_16*0.001072,  NF_16*0.00155975,NF_16*0.00176743,NF_16*0.00155975,NF_16*0.001072,  NF_16*0.0005738, NF_16*0.000239195,NF_16*7.76554e-05, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_16*0.000239195,  NF_16*0.000736774, NF_16*0.00176743,NF_16*0.00330199,NF_16*0.00480437,NF_16*0.00544406,NF_16*0.00480437,NF_16*0.00330199,NF_16*0.00176743,NF_16*0.000736774,NF_16*0.000239195, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_16*0.0005738,    NF_16*0.00176743,  NF_16*0.00423984,NF_16*0.00792107,NF_16*0.0115251, NF_16*0.0130596, NF_16*0.0115251, NF_16*0.00792107,NF_16*0.00423984,NF_16*0.00176743, NF_16*0.0005738,   0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_16*0.001072,     NF_16*0.00330199,  NF_16*0.00792107,NF_16*0.0147985, NF_16*0.0215317, NF_16*0.0243986, NF_16*0.0215317, NF_16*0.0147985, NF_16*0.00792107,NF_16*0.00330199, NF_16*0.001072,    0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_16*0.00155975,   NF_16*0.00480437,  NF_16*0.0115251, NF_16*0.0215317, NF_16*0.0313284, NF_16*0.0354998, NF_16*0.0313284, NF_16*0.0215317, NF_16*0.0115251, NF_16*0.00480437, NF_16*0.00155975,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_16*0.00176743,   NF_16*0.00544406,  NF_16*0.0130596, NF_16*0.0243986, NF_16*0.0354998, NF_16*0.0402265, NF_16*0.0354998, NF_16*0.0243986, NF_16*0.0130596, NF_16*0.00544406, NF_16*0.00176743,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_16*0.00155975,   NF_16*0.00480437,  NF_16*0.0115251, NF_16*0.0215317, NF_16*0.0313284, NF_16*0.0354998, NF_16*0.0313284, NF_16*0.0215317, NF_16*0.0115251, NF_16*0.00480437, NF_16*0.00155975,  0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_16*0.001072,     NF_16*0.00330199,  NF_16*0.00792107,NF_16*0.0147985, NF_16*0.0215317, NF_16*0.0243986, NF_16*0.0215317, NF_16*0.0147985, NF_16*0.00792107,NF_16*0.00330199, NF_16*0.001072,    0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_16*0.0005738,    NF_16*0.00176743,  NF_16*0.00423984,NF_16*0.00792107,NF_16*0.0115251, NF_16*0.0130596, NF_16*0.0115251, NF_16*0.00792107,NF_16*0.00423984,NF_16*0.00176743, NF_16*0.0005738,   0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_16*0.000239195,  NF_16*0.000736774, NF_16*0.00176743,NF_16*0.00330199,NF_16*0.00480437,NF_16*0.00544406,NF_16*0.00480437,NF_16*0.00330199,NF_16*0.00176743,NF_16*0.000736774,NF_16*0.000239195, 0.0, 0.0, 0.0, 0.0 },
-    {0.0, NF_16*7.76554e-05,  NF_16*0.000239195, NF_16*0.0005738, NF_16*0.001072,  NF_16*0.00155975,NF_16*0.00176743,NF_16*0.00155975,NF_16*0.001072,  NF_16*0.0005738, NF_16*0.000239195,NF_16*7.76554e-05, 0.0, 0.0, 0.0, 0.0 }};
 
 /************************************************************
  *   helper functions
@@ -734,47 +510,6 @@ static void CTCountOfBitsChanged_for_reference(DT *LRImage, DT *HRImage, DT *out
     }
 }
 
-inline void load3x3_ps(float *img, unsigned int width, unsigned int height, unsigned int stride, __m256 *out_8neighbors_ps, __m256 *out_center_ps)
-{
-    __m128i mask_3pixels = _mm_setr_epi32(-1, -1, -1, 0);
-    int index = (height - 1) * stride + (width - 1);
-    // load 3x3 grid for lr image, including center pixel plus 8 neighbors
-    __m128 row1_f = _mm_maskload_ps(img + index, mask_3pixels);
-    index += stride;
-    __m128 row2_f = _mm_maskload_ps(img + index, mask_3pixels);
-    index += stride;
-    __m128 row3_f = _mm_maskload_ps(img + index, mask_3pixels);
-
-    *out_center_ps = _mm256_broadcastss_ps(_mm_insert_ps(row2_f, row2_f, 0x40));
-    // load 8 neighbors (32bit floats) into 256 reg from lr image
-    __m128 rowlo_f = _mm_insert_ps(row1_f, row2_f, 0x30);
-    __m128 rowhi_f = _mm_insert_ps(row3_f, row2_f, 0xB0);
-    *out_8neighbors_ps = _mm256_insertf128_ps(_mm256_castps128_ps256(rowlo_f), rowhi_f, 1);
-}
-
-inline __m256i compare3x3_ps(__m256 a, __m256 b, __m256i highbit_epi32)
-{
-    // compare if neighbors < centerpixel, toggle bit in mask if true
-    // when cmp_ps is true, it returns 0x7fffff (-nan).  When we convert that to int, it is 0x8000 0000
-
-    return _mm256_srli_epi32(_mm256_and_si256(_mm256_cvtps_epi32(
-                                                  _mm256_cmp_ps(a, b, _CMP_LT_OS)),
-                                              highbit_epi32),
-                             31); // shift right by 31 such that the high bit (if set) moves to the low bit
-}
-inline __mmask8 compare3x3_ps_AVX512(__m256 a, __m256 b)
-{
-    return _mm256_cmp_ps_mask(a, b, _CMP_LT_OS);
-}
-
-inline int sumitup_256_epi32(__m256i acc)
-{
-    const __m128i r4 = _mm_add_epi32(_mm256_castsi256_si128(acc), _mm256_extractf128_si256(acc, 1));
-    const __m128i r2 = _mm_hadd_epi32(r4, r4);
-    const __m128i r1 = _mm_hadd_epi32(r2, r2);
-    return _mm_cvtsi128_si32(r1);
-}
-
 static void CTCountOfBitsChanged_AVX2(float *LRImage, float *HRImage, float *outImage, unsigned int width /*cols*/, unsigned int height /*rows*/, unsigned int widthWithPadding)
 {
 
@@ -1041,45 +776,6 @@ int inline CTRandomness_C(float *inYUpscaled32f, int cols, int r, int c, int pix
     return census_count;
 }
 
-int inline CTRandomness_AVX2(float *inYUpscaled32f, int cols, int r, int c, int pix)
-{
-    int census_count = 0;
-
-    __m128 zero_f = _mm_setzero_ps();
-    __m256 row_f, center_f;
-
-    load3x3_ps(inYUpscaled32f, c + pix, r, cols, &row_f, &center_f);
-
-    // compare if neighbors < centerpixel, toggle bit in mask if true
-    int highbit = 0x80000000;
-    const __m256i highbit_epi32 = _mm256_setr_epi32(highbit, highbit, highbit, highbit, highbit, highbit, highbit, highbit);
-
-    __m256i cmp_epi32 = compare3x3_ps(row_f, center_f, highbit_epi32);
-
-    // count # of bits in mask
-    census_count += sumitup_256_epi32(cmp_epi32);
-
-    return census_count;
-}
-
-int inline CTRandomness_AVX512(float *inYUpscaled32f, int cols, int r, int c, int pix)
-{
-    int census_count = 0;
-
-    __m128 zero_f = _mm_setzero_ps();
-    __m256 row_f, center_f;
-
-    load3x3_ps(inYUpscaled32f, c + pix, r, cols, &row_f, &center_f);
-
-    // compare if neighbors < centerpixel, toggle bit in mask if true
-    __mmask8 cmp_m8 = compare3x3_ps_AVX512(row_f, center_f);
-
-    // count # of bits in mask
-    census_count += _mm_popcnt_u32(cmp_m8);
-
-    return census_count;
-}
-
 /************************************************************
  *   Hashing functions
  ************************************************************/
@@ -1298,132 +994,6 @@ int inline GetHashValue(float *GTWG, int pass)
            coherenceIdx;
 }
 
-#define sumitup_ps(suffix, acc) sumitup_ps_##suffix(acc)
-inline float sumitup_ps_256(__m256 acc)
-{
-    const __m128 r4 = _mm_add_ps(_mm256_castps256_ps128(acc), _mm256_extractf128_ps(acc, 1));
-    const __m128 r2 = _mm_add_ps(r4, _mm_movehl_ps(r4, r4));
-    const __m128 r1 = _mm_add_ss(r2, _mm_movehdup_ps(r2));
-    return _mm_cvtss_f32(r1);
-}
-#ifndef DISABLE_AVX512
-inline float sumitup_ps_512(__m512 acc)
-{
-    const __m256 r8 = _mm256_add_ps(_mm512_castps512_ps256(acc), _mm512_extractf32x8_ps(acc, 1));
-    const __m128 r4 = _mm_add_ps(_mm256_castps256_ps128(r8), _mm256_extractf128_ps(r8, 1));
-    const __m128 r2 = _mm_add_ps(r4, _mm_movehl_ps(r4, r4));
-    const __m128 r1 = _mm_add_ss(r2, _mm_movehdup_ps(r2));
-    return _mm_cvtss_f32(r1);
-}
-inline __m512 shiftL(__m512 r)
-{
-    return _mm512_permutexvar_ps(_mm512_set_epi32(0, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1), r);
-}
-inline __m512 shiftR(__m512 r)
-{
-    return _mm512_permutexvar_ps(_mm512_set_epi32(14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15), r);
-}
-
-inline __m512 GetGx(__m512 r1, __m512 r3)
-{
-    return _mm512_sub_ps(r3, r1);
-}
-
-inline __m512 GetGy(__m512 r2)
-{
-    return _mm512_sub_ps(shiftL(r2), shiftR(r2));
-}
-
-inline __m512 GetGTWG(__m512 acc, __m512 a, __m512 w, __m512 b)
-{
-    return _mm512_fmadd_ps(_mm512_mul_ps(a, w), b, acc);
-}
-
-void inline computeGTWG_Segment(const float *img, const int nrows, const int ncols, const int r, const int col, float GTWG[][4], float *buf1, float *buf2)
-{
-    // offset is the starting position(top left) of the block which centered by (r, c)
-    int offset = (r - gLoopMargin) * ncols + col - gLoopMargin;
-    const float *p1 = img + offset;
-
-    __m512 gtwg0A = _mm512_setzero_ps(), gtwg1A = _mm512_setzero_ps(), gtwg3A = _mm512_setzero_ps();
-    __m512 gtwg0B = _mm512_setzero_ps(), gtwg1B = _mm512_setzero_ps(), gtwg3B = _mm512_setzero_ps();
-
-    // load 2 rows
-    __m512 a = _mm512_loadu_ps(p1);
-    p1 += ncols;
-    __m512 b = _mm512_loadu_ps(p1);
-#pragma unroll
-    for (int i = 0; i < gPatchSize; i++)
-    {
-        // memcpy(buf1+gPatchSize*i, p1+1, sizeof(float)*gPatchSize);
-        // memcpy(buf2+gPatchSize*i, p1+2, sizeof(float)*gPatchSize);
-
-        // process patchSize rows
-        // load next row
-        p1 += ncols;
-        __m512 c = _mm512_loadu_ps(p1);
-        __m512 w;
-        if (gBitDepth == 8)
-        {
-            w = _mm512_loadu_ps(gGaussian2D8bit[i]);
-        }
-        else if (gBitDepth == 10)
-        {
-            w = _mm512_loadu_ps(gGaussian2D10bit[i]);
-        }
-        else
-        {
-            w = _mm512_loadu_ps(gGaussian2D16bit[i]);
-        }
-
-        const __m512 gxi = GetGx(a, c);
-        const __m512 gyi = GetGy(b);
-
-        gtwg0A = GetGTWG(gtwg0A, gxi, w, gxi);
-        gtwg1A = GetGTWG(gtwg1A, gxi, w, gyi);
-        gtwg3A = GetGTWG(gtwg3A, gyi, w, gyi);
-
-        w = shiftR(w);
-        gtwg0B = GetGTWG(gtwg0B, gxi, w, gxi);
-        gtwg1B = GetGTWG(gtwg1B, gxi, w, gyi);
-        gtwg3B = GetGTWG(gtwg3B, gyi, w, gyi);
-
-        _mm512_mask_storeu_ps(buf1 + gPatchSize * i - 1, 0x0ffe, b);
-        _mm512_mask_storeu_ps(buf2 + gPatchSize * i - 2, 0x1ffc, b);
-        a = b;
-        b = c;
-    }
-    GTWG[0][0] = sumitup_ps_512(gtwg0A);
-    GTWG[0][1] = sumitup_ps_512(gtwg1A);
-    GTWG[0][3] = sumitup_ps_512(gtwg3A);
-    GTWG[0][2] = GTWG[0][1];
-
-    GTWG[1][0] = sumitup_ps_512(gtwg0B);
-    GTWG[1][1] = sumitup_ps_512(gtwg1B);
-    GTWG[1][3] = sumitup_ps_512(gtwg3B);
-    GTWG[1][2] = GTWG[1][1];
-
-    return;
-}
-
-// AVX512 version: for now, gPatchSize must be <= 16 because we can work with up to 16 float32s in one AVX512 register.
-float inline DotProdPatch_AVX512_32f(const float *buf, const float *filter)
-{
-    __m512 a_ps = _mm512_load_ps(buf);
-    __m512 b_ps = _mm512_load_ps(filter);
-    __m512 sum = _mm512_mul_ps(a_ps, b_ps);
-#pragma unroll
-    for (int i = 1; i < 8; i++)
-    {
-        a_ps = _mm512_load_ps(buf + i * 16);
-        b_ps = _mm512_load_ps(filter + i * 16);
-        // compute dot prod using fmadd
-        sum = _mm512_fmadd_ps(a_ps, b_ps, sum);
-    }
-    // sumitup adds all 16 float values in sum(zmm) and returns a single float value
-    return sumitup_ps_512(sum);
-}
-
 RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, BlendingMode blendingMode, int threadIdx)
 {
     VideoDataType *inY;
@@ -1577,7 +1147,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
 #pragma unroll(unrollSizePatchBased / 2)
                 for (pix = 0; pix < unrollSizePatchBased / 2; pix++)
                 {
-                    computeGTWG_Segment(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
+                    computeGTWG_Segment_AVX512_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
                 }
 
                 GetHashValue_AVX256_32f(GTWG, passIdx, hashValue);
@@ -1605,7 +1175,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                         // CT-Blending, CTRandomness
                         if (blendingMode == Randomness)
                         {
-                            census = CTRandomness_AVX512(pSeg32f, cols, rOffset, c, pix);
+                            census = CTRandomness_AVX512_32f(pSeg32f, cols, rOffset, c, pix);
                             float weight = (float)census / (float)CTnumberofPixel;
                             // position in the whole image: r * cols + c + pix
                             float val = weight * curPix + (1 - weight) * pSeg32f[rOffset * cols + c + pix];
@@ -1654,7 +1224,6 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
 #endif
     return RNLErrorNone;
 }
-#endif
 
 /************************************************************
  *   API functions
