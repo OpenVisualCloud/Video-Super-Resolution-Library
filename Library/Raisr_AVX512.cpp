@@ -6,6 +6,7 @@
  */
 #include "Raisr_globals.h"
 #include "Raisr_AVX512.h"
+#include "Raisr_AVX256.h"
 #include <immintrin.h>
 #include <popcntintrin.h>
 

@@ -8,9 +8,7 @@
 #include "Raisr.h"
 #include "Raisr_globals.h"
 #include "Raisr_AVX256.h"
-#include "Raisr_AVX512.h"
 #include "Raisr_AVX256.cpp"
-#include "Raisr_AVX512.cpp"
 #include <fstream>
 #include <iterator>
 #include <iostream>
@@ -23,6 +21,11 @@
 #include "cpuid.h"
 #include <chrono>
 
+#ifdef __AVX512F__
+#include "Raisr_AVX512.h"
+#include "Raisr_AVX512.cpp"
+#endif
+
 #ifndef WIN32
 #include <unistd.h>
 #endif
@@ -34,9 +37,8 @@
  ************************************************************/
 #define ALIGNED_SIZE(size, align) (((size) + (align)-1) & ~((align)-1))
 
-static bool is_machine_intel()
+static MachineVendorType get_machine_vendor()
 {
-    bool ret = false;
 
     unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
 
@@ -49,7 +51,50 @@ static bool is_machine_intel()
     vendor_string[12] = 0;
 
     if (!strcmp(vendor_string, "GenuineIntel"))
-        ret = true;
+        gMachineVendorType = INTEL;
+    else if (!strcmp(vendor_string, "AuthenticAMD"))
+        gMachineVendorType = AMD;
+    else
+        gMachineVendorType = VENDOR_UNSUPPORTED;
+    return gMachineVendorType;
+}
+
+static bool machine_supports_feature(MachineVendorType vendor, ASMType type)
+{
+    bool ret = false;
+    unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
+
+    if (vendor == INTEL ) {
+        __get_cpuid_count(0x7, 0x0, &eax, &ebx, &ecx, &edx);
+
+        if (type == AVX512) {
+            // check for avx512f and avx512vl flags
+            if ( ((ebx >> 16) & 0x1)
+                && ((ebx >> 31) & 0x1) )
+            {
+                ret = true;
+            }
+        } else if (type == AVX2) {
+            // check for avx2 flag
+            if ( (ebx >> 5) & 0x1)
+            {
+                ret = true;
+            }
+        }
+    }
+    else if (vendor == AMD)
+    {
+        __get_cpuid_count(0x7, 0x0, &eax, &ebx, &ecx, &edx);
+
+        if (type == AVX512) {
+            ret = false;
+        } else if (type == AVX2) {
+            if ( (ebx >> 5) & 0x1)
+            {
+                ret = true;
+            }
+        }
+    }
     return ret;
 }
 
@@ -1149,8 +1194,10 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                 {
                     if (gAsmType == AVX2)
                         computeGTWG_Segment_AVX256_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
+#ifdef __AVX512F__
                     else if (gAsmType == AVX512)
                         computeGTWG_Segment_AVX512_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
+#endif
                     else
                     {
                         std::cout << "expected avx512 or avx2, but got " << gAsmType << std::endl;
@@ -1176,8 +1223,10 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                         float curPix;
                         if (gAsmType == AVX2)
                             curPix  = DotProdPatch_AVX256_32f(pixbuf[pix], fbase[pix]);
+#ifdef __AVX512F__
                         else if (gAsmType == AVX512)
                             curPix  = DotProdPatch_AVX512_32f(pixbuf[pix], fbase[pix]);
+#endif
                         else 
                         {
                             std::cout << "expected avx512 or avx2, but got " << gAsmType << std::endl;
@@ -1194,8 +1243,10 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                         {
                             if (gAsmType == AVX2)
                                 census = CTRandomness_AVX256_32f(pSeg32f, cols, rOffset, c, pix);
+#ifdef __AVX512F__
                             else if (gAsmType == AVX512)
                                 census = CTRandomness_AVX512_32f(pSeg32f, cols, rOffset, c, pix);
+#endif
                             else
                             {
                                 std::cout << "expected avx512 or avx2, but got " << gAsmType << std::endl;
@@ -1262,8 +1313,6 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
         !inY || !inY->pData || !outY || !outY->pData)
         return RNLErrorBadParameter;
 
-#ifndef DISABLE_AVX512
-
     memset((void *)threadStatus, 0, 120 * sizeof(threadStatus[0]));
 
     // multi-threaded patch-based approach
@@ -1299,8 +1348,6 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
         result.get();
     }
 
-#endif
-
     return RNLErrorNone;
 }
 
@@ -1317,9 +1364,10 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     std::cout << "LIB Build date: " << __DATE__ << ", " << __TIME__ << std::endl;
     std::cout << "-------------------------------------------\n";
 
-    if (!is_machine_intel())
+    gMachineVendorType = get_machine_vendor();
+    if (gMachineVendorType == VENDOR_UNSUPPORTED)
     {
-        std::cout << "[RAISR ERROR] Only supported on Intel platforms. " << std::endl;
+        std::cout << "[RAISR ERROR] Only supported on x86 (Intel, AMD) platforms. " << std::endl;
         return RNLErrorUndefined;
     }
 
@@ -1371,6 +1419,29 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     }
     gRatio = ratio;
     gAsmType = asmType;
+#ifdef __AVX512F__
+    if ( gAsmType != AVX512 && gAsmType != AVX2) gAsmType = AVX512;
+#else
+    if ( gAsmType != AVX2) gAsmType = AVX2;
+#endif
+#ifdef __AVX512F__
+    if ( gAsmType == AVX512) {
+        if (machine_supports_feature(gMachineVendorType, AVX512)) {
+            std::cout << "ASM Type: AVX512\n";
+        } else {
+            std::cout << "ASM Type: AVX512 requested, but machine does not support it.  Changing to AVX2\n";
+            gAsmType = AVX2;
+        }
+    }
+#endif
+    if (gAsmType == AVX2) {
+        if (machine_supports_feature(gMachineVendorType, AVX2)) {
+            std::cout << "ASM Type: AVX2\n";
+        } else {
+            std::cout << "ASM Type: AVX2 requested, but machine does not support it.\n";
+            return RNLErrorBadParameter;
+        }
+    }
     gBitDepth = bitDepth;
 
     // Read config file

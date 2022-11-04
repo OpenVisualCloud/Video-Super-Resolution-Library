@@ -39,6 +39,13 @@ typedef enum ASMType
     AVX512 = 2
 } ASMType;
 
+typedef enum MachineVendorType
+{
+    INTEL = 1,
+    AMD = 2,
+    VENDOR_UNSUPPORTED = 3
+} MachineVendorType;
+
 typedef enum RangeType
 {
     VideoRange = 1,

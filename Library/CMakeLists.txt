@@ -1,5 +1,12 @@
-set(SOURCES Raisr.cpp RaisrHandler.cpp)
-set(HEADERS Raisr.h ThreadPool.h RaisrHandler.h RaisrDefaults.h)
+set(SOURCES Raisr_AVX256.cpp Raisr.cpp RaisrHandler.cpp)
+set(HEADERS Raisr_globals.h Raisr_AVX256.h Raisr.h ThreadPool.h RaisrHandler.h RaisrDefaults.h)
+
+if( HAVE_AVX512 )
+message("Building AVX512 library")
+list(APPEND SOURCES Raisr_AVX512.cpp Raisr_AVX512.h)
+else()
+message("Building AVX2 only")
+endif()
 
 add_library(raisr STATIC ${SOURCES} ${HEADERS})
 

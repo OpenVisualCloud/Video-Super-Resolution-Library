@@ -8,6 +8,7 @@
 
 #include <ipp.h>
 #include "ThreadPool.h"
+#include "RaisrDefaults.h"
 
 /************************************************************
  *   const variables
@@ -32,6 +33,7 @@ const int CTmargin = CTwindowSize >> 1;
 const int gHashingExpand = CTmargin + 1; // Segment is again expanded by CTmargin so that all the rows in the segment can be processed by CTCountOfBitsChanged(). "+1" is to make sure the resize zone is even.
 static unsigned int gRatio;
 static ASMType gAsmType;
+static MachineVendorType gMachineVendorType;
 static unsigned int gBitDepth;
 
 // Process multiple columns in each pass of the loop
