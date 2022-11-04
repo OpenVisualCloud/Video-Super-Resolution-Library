@@ -40,26 +40,26 @@ inline float sumitup_ps_512(__m512 acc)
     const __m128 r1 = _mm_add_ss(r2, _mm_movehdup_ps(r2));
     return _mm_cvtss_f32(r1);
 }
-inline __m512 shiftL(__m512 r)
+inline __m512 shiftL_AVX512(__m512 r)
 {
     return _mm512_permutexvar_ps(_mm512_set_epi32(0, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1), r);
 }
-inline __m512 shiftR(__m512 r)
+inline __m512 shiftR_AVX512(__m512 r)
 {
     return _mm512_permutexvar_ps(_mm512_set_epi32(14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15), r);
 }
 
-inline __m512 GetGx(__m512 r1, __m512 r3)
+inline __m512 GetGx_AVX512(__m512 r1, __m512 r3)
 {
     return _mm512_sub_ps(r3, r1);
 }
 
-inline __m512 GetGy(__m512 r2)
+inline __m512 GetGy_AVX512(__m512 r2)
 {
-    return _mm512_sub_ps(shiftL(r2), shiftR(r2));
+    return _mm512_sub_ps(shiftL_AVX512(r2), shiftR_AVX512(r2));
 }
 
-inline __m512 GetGTWG(__m512 acc, __m512 a, __m512 w, __m512 b)
+inline __m512 GetGTWG_AVX512(__m512 acc, __m512 a, __m512 w, __m512 b)
 {
     return _mm512_fmadd_ps(_mm512_mul_ps(a, w), b, acc);
 }
@@ -80,9 +80,6 @@ void inline computeGTWG_Segment_AVX512_32f(const float *img, const int nrows, co
 #pragma unroll
     for (int i = 0; i < gPatchSize; i++)
     {
-        // memcpy(buf1+gPatchSize*i, p1+1, sizeof(float)*gPatchSize);
-        // memcpy(buf2+gPatchSize*i, p1+2, sizeof(float)*gPatchSize);
-
         // process patchSize rows
         // load next row
         p1 += ncols;
@@ -101,17 +98,17 @@ void inline computeGTWG_Segment_AVX512_32f(const float *img, const int nrows, co
             w = _mm512_loadu_ps(gGaussian2D16bit[i]);
         }
 
-        const __m512 gxi = GetGx(a, c);
-        const __m512 gyi = GetGy(b);
+        const __m512 gxi = GetGx_AVX512(a, c);
+        const __m512 gyi = GetGy_AVX512(b);
 
-        gtwg0A = GetGTWG(gtwg0A, gxi, w, gxi);
-        gtwg1A = GetGTWG(gtwg1A, gxi, w, gyi);
-        gtwg3A = GetGTWG(gtwg3A, gyi, w, gyi);
+        gtwg0A = GetGTWG_AVX512(gtwg0A, gxi, w, gxi);
+        gtwg1A = GetGTWG_AVX512(gtwg1A, gxi, w, gyi);
+        gtwg3A = GetGTWG_AVX512(gtwg3A, gyi, w, gyi);
 
-        w = shiftR(w);
-        gtwg0B = GetGTWG(gtwg0B, gxi, w, gxi);
-        gtwg1B = GetGTWG(gtwg1B, gxi, w, gyi);
-        gtwg3B = GetGTWG(gtwg3B, gyi, w, gyi);
+        w = shiftR_AVX512(w);
+        gtwg0B = GetGTWG_AVX512(gtwg0B, gxi, w, gxi);
+        gtwg1B = GetGTWG_AVX512(gtwg1B, gxi, w, gyi);
+        gtwg3B = GetGTWG_AVX512(gtwg3B, gyi, w, gyi);
 
         _mm512_mask_storeu_ps(buf1 + gPatchSize * i - 1, 0x0ffe, b);
         _mm512_mask_storeu_ps(buf2 + gPatchSize * i - 2, 0x1ffc, b);

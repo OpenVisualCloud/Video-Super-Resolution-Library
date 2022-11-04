@@ -1147,7 +1147,15 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
 #pragma unroll(unrollSizePatchBased / 2)
                 for (pix = 0; pix < unrollSizePatchBased / 2; pix++)
                 {
-                    computeGTWG_Segment_AVX512_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
+                    if (gAsmType == AVX2)
+                        computeGTWG_Segment_AVX256_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
+                    else if (gAsmType == AVX512)
+                        computeGTWG_Segment_AVX512_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
+                    else
+                    {
+                        std::cout << "expected avx512 or avx2, but got " << gAsmType << std::endl;
+                        return RNLErrorBadParameter;
+                    }
                 }
 
                 GetHashValue_AVX256_32f(GTWG, passIdx, hashValue);

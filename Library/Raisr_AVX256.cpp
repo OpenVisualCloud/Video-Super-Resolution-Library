@@ -58,6 +58,171 @@ inline float sumitup_ps_256(__m256 acc)
     return _mm_cvtss_f32(r1);
 }
 
+inline __m256 shiftL_AVX256(__m256 r)
+{
+    return _mm256_permutevar8x32_ps(r, _mm256_set_epi32(0, 7, 6, 5, 4, 3, 2, 1));
+}
+
+inline __m256 shiftR_AVX256(__m256 r)
+{
+    return _mm256_permutevar8x32_ps(r, _mm256_set_epi32(6, 5, 4, 3, 2, 1, 0, 7));
+}
+
+inline __m256 GetGx_AVX256(__m256 r1, __m256 r3)
+{
+    return _mm256_sub_ps(r3, r1);
+}
+
+inline __m256 GetGy_AVX256(__m256 r2)
+{
+    return _mm256_sub_ps(shiftL_AVX256(r2), shiftR_AVX256(r2));
+}
+
+inline __m128 GetFirstHalf(__m256 n)
+{
+    return _mm256_extractf128_ps(n, 0);
+}
+
+inline __m128 GetLastHalf(__m256 n)
+{
+    return _mm256_extractf128_ps(n, 1);
+}
+
+template <int halfIndex>
+inline __m256 SetFirstVal(__m256 n, __m128 halfWithValue) {
+    __m128 newHalf = _mm_insert_ps(_mm256_extractf128_ps(n, 0), halfWithValue, halfIndex);
+    return _mm256_insertf128_ps(n, newHalf, 0);
+}
+
+template <int halfIndex>
+inline __m256 SetLastVal(__m256 n, __m128 halfWithValue) {
+    __m128 newHalf = _mm_insert_ps(_mm256_extractf128_ps(n, 1), halfWithValue, halfIndex);
+    return _mm256_insertf128_ps(n, newHalf, 1);
+}
+
+inline __m256 GetGy_AVX256Hi(__m256 xlo, __m256 xhi)
+{
+    // ideally we do some cross lane permute, but one doesnt seem to exist.  Our approach instead is to save the original values,
+    // do our in-lane permutes, then insert additional values on the ends to achieve correct behavior
+    __m128 xlohi = GetLastHalf(xlo);
+    __m128 xlolo = GetFirstHalf(xlo);
+
+    __m256 newloLeft = SetLastVal<0x30>(shiftL_AVX256(xhi), xlolo);
+    __m256 newloRight = SetFirstVal<0xC0>(shiftR_AVX256(xhi), xlohi);
+    __m256 ret = _mm256_sub_ps(newloLeft, newloRight);
+    return ret;
+}
+
+inline __m256 GetGy_AVX256Lo(__m256 xlo, __m256 xhi)
+{
+    // ideally we do some cross lane permute, but one doesnt seem to exist.  Our approach instead is to save the original values,
+    // do our in-lane permutes, then insert additional values on the ends to achieve correct behavior
+    __m128 xhilo = GetFirstHalf(xhi);
+    __m128 xhihi = GetLastHalf(xhi);
+    __m256 newloLeft = SetLastVal <0x30>(shiftL_AVX256(xlo), xhilo);
+    __m256 newloRight = SetFirstVal<0xC0>(shiftR_AVX256(xlo), xhihi);
+
+    __m256 ret = _mm256_sub_ps(newloLeft, newloRight);
+    return ret;
+}
+
+inline __m256 GetGTWG_AVX256(__m256 acc, __m256 a, __m256 w, __m256 b)
+{
+    return _mm256_fmadd_ps(_mm256_mul_ps(a, w), b, acc);
+}
+
+void inline computeGTWG_Segment_AVX256_32f(const float *img, const int nrows, const int ncols, const int r, const int col, float GTWG[][4], float *buf1, float *buf2)
+{
+    // offset is the starting position(top left) of the block which centered by (r, c)
+    int offset = (r - gLoopMargin) * ncols + col - gLoopMargin;
+    const float *p1 = img + offset;
+
+    __m256 gtwg0A1 = _mm256_setzero_ps(), gtwg0A2 = _mm256_setzero_ps();
+    __m256 gtwg0B1 = _mm256_setzero_ps(), gtwg0B2 = _mm256_setzero_ps();
+    __m256 gtwg1A1 = _mm256_setzero_ps(), gtwg1A2 = _mm256_setzero_ps();
+    __m256 gtwg1B1 = _mm256_setzero_ps(), gtwg1B2 = _mm256_setzero_ps();
+    __m256 gtwg3A1 = _mm256_setzero_ps(), gtwg3A2 = _mm256_setzero_ps();
+    __m256 gtwg3B1 = _mm256_setzero_ps(), gtwg3B2 = _mm256_setzero_ps();
+
+    // load 2 rows
+    __m256 a1 = _mm256_loadu_ps(p1);
+    __m256 a2 = _mm256_loadu_ps(p1+8);
+    p1 += ncols;
+    __m256 b1 = _mm256_loadu_ps(p1);
+    __m256 b2 = _mm256_loadu_ps(p1+8);
+#pragma unroll
+    for (int i = 0; i < gPatchSize; i++)
+    {
+        // process patchSize rows
+        // load next row
+        p1 += ncols;
+        __m256 c1 = _mm256_loadu_ps(p1);
+        __m256 c2 = _mm256_loadu_ps(p1+8);
+        __m256 w1, w2;
+       if(gBitDepth == 8) {
+            w1 = _mm256_loadu_ps(gGaussian2D8bit[i]);
+            w2 = _mm256_loadu_ps(gGaussian2D8bit[i]+8);
+       } else if (gBitDepth == 10) {
+            w1 = _mm256_loadu_ps(gGaussian2D10bit[i]);
+            w2 = _mm256_loadu_ps(gGaussian2D10bit[i]+8);
+       } else {
+            w1 = _mm256_loadu_ps(gGaussian2D16bit[i]);
+            w2 = _mm256_loadu_ps(gGaussian2D16bit[i]+8);
+       }
+
+        const __m256 gxi1 = GetGx_AVX256(a1, c1);
+        const __m256 gxi2 = GetGx_AVX256(a2, c2);
+
+        const __m256 gyi1 = GetGy_AVX256Lo(b1,b2);
+        const __m256 gyi2 = GetGy_AVX256Hi(b1,b2);
+
+        gtwg0A1 = GetGTWG_AVX256(gtwg0A1, gxi1, w1, gxi1);
+        gtwg0A2 = GetGTWG_AVX256(gtwg0A2, gxi2, w2, gxi2);
+        gtwg1A1 = GetGTWG_AVX256(gtwg1A1, gxi1, w1, gyi1);
+        gtwg1A2 = GetGTWG_AVX256(gtwg1A2, gxi2, w2, gyi2);
+        gtwg3A1 = GetGTWG_AVX256(gtwg3A1, gyi1, w1, gyi1);
+        gtwg3A2 = GetGTWG_AVX256(gtwg3A2, gyi2, w2, gyi2);
+
+        // Store last bit for shiftR and mask
+        __m128 xlohi = GetLastHalf(w1);
+        __m128 xhihi = GetLastHalf(w2);
+        w1 = SetFirstVal<0xC0>(shiftR_AVX256(w1), xhihi);
+        w2 = SetFirstVal<0xC0>(shiftR_AVX256(w2), xlohi);
+
+        gtwg0B1 = GetGTWG_AVX256(gtwg0B1, gxi1, w1, gxi1);
+        gtwg0B2 = GetGTWG_AVX256(gtwg0B2, gxi2, w2, gxi2);
+        gtwg1B1 = GetGTWG_AVX256(gtwg1B1, gxi1, w1, gyi1);
+        gtwg1B2 = GetGTWG_AVX256(gtwg1B2, gxi2, w2, gyi2);
+        gtwg3B1 = GetGTWG_AVX256(gtwg3B1, gyi1, w1, gyi1);
+        gtwg3B2 = GetGTWG_AVX256(gtwg3B2, gyi2, w2, gyi2);
+
+        // skip one, store next 11 bits.  The two masks are 0xfe, 0x0f
+        int lastbit = 0x80000000;
+        _mm256_maskstore_ps(buf1 + gPatchSize * i - 1, _mm256_setr_epi32(0, lastbit, lastbit, lastbit, lastbit, lastbit, lastbit, lastbit), b1);
+        _mm256_maskstore_ps(buf1 + gPatchSize * i - 1 + 8, _mm256_setr_epi32(lastbit, lastbit, lastbit, lastbit, 0,0,0,0), b2);
+        // skip two, store next 11 bits.  The two masks are 0xfc, 0x1f
+        _mm256_maskstore_ps(buf2 + gPatchSize * i - 2, _mm256_setr_epi32(0,0,lastbit,lastbit,lastbit,lastbit,lastbit,lastbit), b1);
+        _mm256_maskstore_ps(buf2 + gPatchSize * i - 2 + 8, _mm256_setr_epi32(lastbit,lastbit,lastbit,lastbit,lastbit,0,0,0), b2);
+        a1 = b1;
+        a2 = b2;
+        b1 = c1;
+        b2 = c2;
+    }
+
+    GTWG[0][0] = sumitup_ps_256(_mm256_add_ps(gtwg0A1, gtwg0A2));
+    GTWG[0][1] = sumitup_ps_256(_mm256_add_ps(gtwg1A1, gtwg1A2));
+    GTWG[0][3] = sumitup_ps_256(_mm256_add_ps(gtwg3A1, gtwg3A2));
+    GTWG[0][2] = GTWG[0][1];
+
+    GTWG[1][0] = sumitup_ps_256(_mm256_add_ps(gtwg0B1, gtwg0B2));
+    GTWG[1][1] = sumitup_ps_256(_mm256_add_ps(gtwg1B1, gtwg1B2));
+    GTWG[1][3] = sumitup_ps_256(_mm256_add_ps(gtwg3B1, gtwg3B2));
+    GTWG[1][2] = GTWG[1][1];
+
+    return;
+}
+
+
 // AVX2 version: for now, gPatchSize must be <= 16 because we can work with up to 16 float32s in two AVX256 registers.
 float inline DotProdPatch_AVX256_32f(const float *buf, const float *filter)
 {

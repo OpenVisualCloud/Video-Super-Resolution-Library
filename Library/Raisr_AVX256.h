@@ -25,9 +25,6 @@ inline void load3x3_ps(float *img, unsigned int width, unsigned int height, unsi
     *out_8neighbors_ps = _mm256_insertf128_ps(_mm256_castps128_ps256(rowlo_f), rowhi_f, 1);
 }
 
-inline __m256i compare3x3_AVX256_32f(__m256 a, __m256 b, __m256i highbit_epi32);
-inline int sumitup_256_epi32(__m256i acc);
-inline float sumitup_ps_256(__m256 acc);
-
 int inline CTRandomness_AVX256_32f(float *inYUpscaled32f, int cols, int r, int c, int pix);
 float inline DotProdPatch_AVX256_32f(const float *buf, const float *filter);
+void inline computeGTWG_Segment_AVX256_32f(const float *img, const int nrows, const int ncols, const int r, const int col, float GTWG[][4], float *buf1, float *buf2);
