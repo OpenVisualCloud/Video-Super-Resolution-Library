@@ -809,7 +809,8 @@ static void CTCountOfBitsChanged_AVX2(float *LRImage, float *HRImage, float *out
 // LRImage: cheap up scaled. HRImage: RAISR refined. outImage: output buffer in 8u.
 // rows: rows of LRImage/HRImage. startRow: seg start row. blendingZone: zone to run blending.
 // cols: stride for buffers in DT type.
-static void CTCountOfBitsChangedSegment_AVX2(float *LRImage, float *HRImage, const int rows, const int startRow, const std::pair<int, int> blendingZone, unsigned char *outImage, const int cols)
+// outImageCols: stride for outImage buffer
+static void CTCountOfBitsChangedSegment_AVX2(float *LRImage, float *HRImage, const int rows, const int startRow, const std::pair<int, int> blendingZone, unsigned char *outImage, const int cols, const int outImageCols)
 {
     int rowStartOffset = blendingZone.first - startRow;
     int rowEndOffset = blendingZone.second - startRow;
@@ -841,12 +842,12 @@ static void CTCountOfBitsChangedSegment_AVX2(float *LRImage, float *HRImage, con
             // convert 32f to 8bit/10bit
             if (gBitDepth == 8)
             {
-                outImage[(startRow + r) * cols + c] = (unsigned char)(val < gMin8bit ? gMin8bit : (val > gMax8bit ? gMax8bit : val));
+                outImage[(startRow + r) * outImageCols + c] = (unsigned char)(val < gMin8bit ? gMin8bit : (val > gMax8bit ? gMax8bit : val));
             }
             else
             {
                 unsigned short *out = (unsigned short *)outImage;
-                out[(startRow + r) * cols + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
+                out[(startRow + r) * outImageCols + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
             }
         }
     }
@@ -855,8 +856,9 @@ static void CTCountOfBitsChangedSegment_AVX2(float *LRImage, float *HRImage, con
 // LRImage: cheap up scaled. HRImage: RAISR refined. outImage: output buffer in 8u.
 // rows: rows of LRImage/HRImage. startRow: seg start row. blendingZone: zone to run blending.
 // cols: stride for buffers in DT type.
+// outImageCols: stride for outImage buffer
 template <typename DT>
-static void CTCountOfBitsChangedSegment(DT *LRImage, DT *HRImage, const int rows, const int startRow, const std::pair<int, int> blendingZone, unsigned char *outImage, const int cols)
+static void CTCountOfBitsChangedSegment(DT *LRImage, DT *HRImage, const int rows, const int startRow, const std::pair<int, int> blendingZone, unsigned char *outImage, const int cols, const int outImageCols)
 {
     // run census transform on a CTwindowSize * CTwindowSize block centered by [r, c]
     int rowStartOffset = blendingZone.first - startRow;
@@ -883,12 +885,12 @@ static void CTCountOfBitsChangedSegment(DT *LRImage, DT *HRImage, const int rows
             // convert 32f to 8bit/10bit
             if (gBitDepth == 8)
             {
-                outImage[(startRow + r) * cols + c] = (unsigned char)(val < gMin8bit ? gMin8bit : (val > gMax8bit ? gMax8bit : val));
+                outImage[(startRow + r) * outImageCols + c] = (unsigned char)(val < gMin8bit ? gMin8bit : (val > gMax8bit ? gMax8bit : val));
             }
             else
             {
                 unsigned short *out = (unsigned short *)outImage;
-                out[(startRow + r) * cols + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
+                out[(startRow + r) * outImageCols + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
             }
         }
     }
@@ -1224,9 +1226,12 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
             outY = gIntermediateY; // change the output to VideoDataType gIntermediateY to save the output of 1st pass
         }
 
+        // step is mean line size in a frame, for video the line size should be multiplies of the CPU alignment(16 or 32 bytes), 
+        // the outY->step may greater than or equal to outY->width.
+        // the step of gIppCtx.segZones[passIdx][threadIdx].inYUpscaled is equal to the outY->width 
         const int rows = outY->height;
         const int cols = outY->width;
-        const int step = outY->step;
+        const int step = outY->width;
 
         // 1. Prepare cheap up-scaled 32f data
         IppStatus status = ippStsNoErr;
@@ -1267,8 +1272,8 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
             ippiConvert_8u32f_C1R(pDst, cols,
                                   pSeg32f, cols * sizeof(float), {(int)cols, segRows});
         else
-            ippiConvert_16u32f_C1R((Ipp16u *)pDst, step,
-                                   pSeg32f, cols * sizeof(float), {(int)cols, segRows});
+            ippiConvert_16u32f_C1R((Ipp16u *)pDst, cols,
+                                  pSeg32f, cols * sizeof(float), {(int)cols, segRows});
 
         // 2. Run hashing
         // Update startRow, endRow for hashing algo
@@ -1278,13 +1283,33 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         // Handle top and bottom borders
         if (startRow == 0)
         {
-            memcpy(outY->pData, pDst, step * gLoopMargin + gLoopMargin);
+            // it needs to do memcpy line by line when the line size of outY->pData is not equal to pDst's line size.
+            if (step == outY->step) {
+                memcpy(outY->pData, pDst, outY->step * gLoopMargin + gLoopMargin);
+            } else {
+                for (int i = 0; i < gLoopMargin; i++) {
+                     memcpy(outY->pData + i * outY->step, pDst + i * step, step);
+                }
+                memcpy(outY->pData + gLoopMargin * outY->step, pDst + gLoopMargin * step, gLoopMargin);
+            }
         }
         if (endRow == rows)
         {
-            memcpy(outY->pData + (rows - gLoopMargin) * step - gLoopMargin,
-                   pDst + (segRows - gLoopMargin) * step - gLoopMargin,
-                   step * gLoopMargin + gLoopMargin);
+            if (step == outY->step) {
+                memcpy(outY->pData + (rows - gLoopMargin) * step - gLoopMargin,
+                       pDst + (segRows - gLoopMargin) * step - gLoopMargin,
+                       outY->step * gLoopMargin + gLoopMargin);
+            } else {
+                memcpy(outY->pData + (rows - gLoopMargin - 1) * outY->step +  outY->width - gLoopMargin,
+                       pDst + (segRows - gLoopMargin) * step - gLoopMargin,
+                       gLoopMargin);
+
+                for (int i = gLoopMargin; i > 0; i--) {
+                     memcpy(outY->pData + (rows - i) * outY->step,
+                            pDst  + (segRows - i) * step,
+                            step);
+                }
+            }
         }
         memcpy(pRaisr32f, pSeg32f, sizeof(float) * cols * segRows);
 
@@ -1353,27 +1378,36 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                             val += 0.5; // to round the value
                             if (gBitDepth == 8)
                             {
-                                outY->pData[r * cols + c + pix] = (unsigned char)(val < gMin8bit ? gMin8bit : (val > gMax8bit ? gMax8bit : val));
+                                outY->pData[r * outY->step + c + pix] = (unsigned char)(val < gMin8bit ? gMin8bit : (val > gMax8bit ? gMax8bit : val));
                             }
                             else
                             {
                                 unsigned short *out = (unsigned short *)outY->pData;
-                                out[r * cols + c + pix] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
+                                out[r * outY->step + c + pix] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
                             }
                         }
                     }
                 }
             }
             // Copy right border pixels for this row and left border pixels for next row
-            memcpy(outY->pData + r * step - gLoopMargin, pDst + rOffset * step - gLoopMargin, 2 * gLoopMargin);
+            if (step == outY->step) {
+                memcpy(outY->pData + r * step - gLoopMargin, pDst + rOffset * step - gLoopMargin, 2 * gLoopMargin);
+            } else {
+                memcpy(outY->pData + (r -1 ) * outY->step + outY->width - gLoopMargin,
+                       pDst + rOffset * step - gLoopMargin,
+                       gLoopMargin);
+                memcpy(outY->pData + r * outY->step,
+                       pDst + rOffset * step,
+                       gLoopMargin);
+            }
         }
         // 3. Run CT-Blending
         if (blendingMode == CountOfBitsChanged)
         {
             int segStart = gIppCtx.segZones[passIdx][threadIdx].scaleStartRow;
-            CTCountOfBitsChangedSegment<float>(pSeg32f, pRaisr32f, segRows, segStart, {gIppCtx.segZones[passIdx][threadIdx].blendingStartRow, gIppCtx.segZones[passIdx][threadIdx].blendingEndRow}, outY->pData, cols);
+            CTCountOfBitsChangedSegment<float>(pSeg32f, pRaisr32f, segRows, segStart, {gIppCtx.segZones[passIdx][threadIdx].blendingStartRow, gIppCtx.segZones[passIdx][threadIdx].blendingEndRow}, outY->pData, cols, outY->step);
             // No improve with AVX2
-            // CTCountOfBitsChangedSegment_AVX2(pSeg32f, pRaisr32f, segRows, segStart, {gIppCtx.segZones[threadIdx].blendingStartRow, gIppCtx.segZones[threadIdx].blendingEndRow}, outY->pData, cols);
+            // CTCountOfBitsChangedSegment_AVX2(pSeg32f, pRaisr32f, segRows, segStart, {gIppCtx.segZones[threadIdx].blendingStartRow, gIppCtx.segZones[threadIdx].blendingEndRow}, outY->pData, cols, outY->step);
         }
 
         threadStatus[threadIdx] = 1;
