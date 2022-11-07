@@ -30,6 +30,16 @@ set(flags_to_test
     -fPIC
 )
 
+# Raisr can use SVML for atan2 if Intel Compiler can be found, otherwise uses an atanApproximation
+get_filename_component(CC_FILENAME ${CMAKE_CXX_COMPILER} NAME)
+string(FIND "${CC_FILENAME}" "icp" CC_SUBSTR_INTEL)
+if (${CC_SUBSTR_INTEL} LESS 0)
+    message("Building with Atan Approximation")
+    list(APPEND flags_to_test "-DUSE_ATAN2_APPROX")
+else()
+    message("Building with Intel Compiler, using SVML")
+endif()
+
 foreach(cflag ${flags_to_test})
     string(REGEX REPLACE "[^A-Za-z0-9]" "_" cflag_var "${cflag}")
     set(test_cxx_flag "CXX_FLAG${cflag_var}")

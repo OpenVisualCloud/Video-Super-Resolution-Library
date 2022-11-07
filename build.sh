@@ -27,6 +27,17 @@ build() (
         *) break ;; 
         esac
     done
+    if $docker_flag; then
+    # docker builds don't support intel cc, so reassign compiler
+        if check_executable clang++; then
+            CXX=$(check_executable -p clang++)
+        elif check_executable g++; then
+            CXX=$(check_executable -p g++)
+        else
+            die "No suitable cpp compiler found in path" \
+            "Please either install one or set it via cxx=*"
+        fi
+    fi
     echo "Create folder: build, build type: $build_type"
     mkdir -p build > /dev/null 2>&1
     cd_safe build
@@ -74,11 +85,10 @@ check_executable() (
     done
     return 127
 )
-
-if check_executable clang++; then
+if check_executable icpx; then
+    CXX=$(check_executable -p icpx)
+elif check_executable clang++; then
     CXX=$(check_executable -p clang++)
-elif check_executable icpc "/opt/intel/bin"; then
-    CXX=$(check_executable -p icpc "/opt/intel/bin")
 elif check_executable g++; then
     CXX=$(check_executable -p g++)
 else
