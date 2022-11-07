@@ -7,7 +7,7 @@
 
 #pragma once
 
-static const int defaultPatchSize = 11;
+#define defaultPatchSize (11)
 static const unsigned int defaultPatchAreaSize = defaultPatchSize * defaultPatchSize;
 
 typedef struct VideoDataType
