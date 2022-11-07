@@ -7,16 +7,15 @@ To build this project you will need:
 - [Docker](https://www.docker.com/) 
 - Intel Xeon hardware which supports Intel AVX512 (Skylake generation or later)
 - Compiler (clang++, g++) 
-- Cmake version 3.12 or later 
+- Cmake version 3.14 or later 
 - Intel® Integrated Performance Primitives (Intel® IPP) (Stand-Alone Version is the minimum requirement)
 - (optional) libx264, libx265, zlib1g-dev
 
 ## Install Intel IPP
 Standalone version of IPP (minimum requirement): https://www.intel.com/content/www/us/en/developer/articles/tool/oneapi-standalone-components.html#ipp \
 Alternatively, install IPP as part of oneAPI Base Toolkit: https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html \
-Add below lines to `~/.bash_profile` which sets IPP env. \
+Add below line to `~/.bash_profile` which sets IPP env. \
     `source /opt/intel/oneapi/ipp/latest/env/vars.sh` \
-    `. ~/.bashrc` \
 Then `source ~/.bash_profile`
 
 # Use FFmpeg RAISR plugin
@@ -24,13 +23,13 @@ Then `source ~/.bash_profile`
 ## Build and install the Intel® Library for VSR with Docker
 In the top level directory of the repository, run
 ``` 
-./build.sh
+sudo -E ./build.sh
 ```
 The library and docker image will automatically be built within 'build.sh'.
 
 If the user is not root and does not have sudo permission, it is assumed that the user has been added to the Docker cgroup and the user must provide the path to the install directory when building. 
 ```
-./build.sh -DCMAKE_INSTALL_PREFIX="/path/to/install"
+./build.sh -DCMAKE_INSTALL_PREFIX="$PWD/install"
 ```
 
 This simple command will run the image in a docker container:
@@ -46,8 +45,8 @@ docker run -ti --rm -v $PWD/input_files:/input_files -v $PWD/output_files:/outpu
 
 If the user would prefer not to use Docker, these instructions may be utilized to setup the Intel Library for VSR.
 
-To build the library without building the docker image, run
-`./build.sh no_docker -DCMAKE_INSTALL_PREFIX="/path/to/install"`
+To build the library without building the docker image, run \
+`./build.sh no_docker -DCMAKE_INSTALL_PREFIX="$PWD/install"`
 
 ### Clone FFmpeg
 `git clone https://github.com/FFmpeg/FFmpeg ffmpeg` \
@@ -57,13 +56,19 @@ To build the library without building the docker image, run
 `git checkout release/4.4`
 
 ### Copy vf_raisr.c to ffmpeg libavfilter folder
-`cp ../ilvsr-library/ffmpeg/vf_raisr.c libavfilter/`
+`cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr.c libavfilter/`
 
 ### Apply patch
-`git am ../ilvsr-library/ffmpeg/0001-ffmpeg-raisr-filter.patch`
+`git am ../Video-Super-Resolution-Library/ffmpeg/0001-ffmpeg-raisr-filter.patch`
 
 ### Configure FFmpeg
+When `DCMAKE_INSTALL_PREFIX` isn't used, the ffmpeg configure command is as: \
 `./configure --enable-libipp --extra-cflags="-fopenmp" --extra-ldflags=-fopenmp --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' --enable-cross-compile`
+
+When `DCMAKE_INSTALL_PREFIX` is used, please add the below line to the ffmpeg configure command: \
+`--extra-cflags=="-fopenmp -I../Video-Super-Resolution-Library/install/include/" --extra-ldflags="-fopenmp -L../Video-Super-Resolution-Library/install/lib/"` \
+The ffmmpeg confiure command is as: \
+`./configure --enable-libipp --extra-cflags="-fopenmp -I../Video-Super-Resolution-Library/install/include/" --extra-ldflags="-fopenmp -L../Video-Super-Resolution-Library/install/lib/" --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' --enable-cross-compile`
 
 ### Build FFmpeg
 `make clean` \
@@ -71,7 +76,7 @@ To build the library without building the docker image, run
 
 ### Copy RAISR filter folder to FFmpeg folder
 The folder contains filterbin_partialCV2, Qfactor_cohbin_partialCV2, and Qfactor_strbin_partialCV2 \
-`cp -r ../ilvsr-library/filters* .`
+`cp -r ../Video-Super-Resolution-Library/filters* .`
 
 ## Running the Intel Library for VSR 
 One should be able to test with video files:
