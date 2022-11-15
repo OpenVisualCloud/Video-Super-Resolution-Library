@@ -68,6 +68,7 @@ typedef struct RaisrContext
     int blending;
     int passes;
     int mode;
+    char *asmStr;
 
     struct plane_info inplanes[3];
     int nb_planes;
@@ -85,6 +86,7 @@ static const AVOption raisr_options[] = {
     {"blending", "CT blending mode (1: Randomness, 2: CountOfBitsChanged)", OFFSET(blending), AV_OPT_TYPE_INT, {.i64 = BLENDING_COUNT_OF_BITS_CHANGED}, BLENDING_RANDOMNESS, BLENDING_COUNT_OF_BITS_CHANGED, FLAGS},
     {"passes", "passes to run (1: one pass, 2: two pass)", OFFSET(passes), AV_OPT_TYPE_INT, {.i64 = 1}, 1, 2, FLAGS},
     {"mode", "mode for two pass (1: upscale in 1st pass, 2: upscale in 2nd pass)", OFFSET(mode), AV_OPT_TYPE_INT, {.i64 = 1}, 1, 2, FLAGS},
+    {"asm", "x86 asm type: (avx512 or avx2)", OFFSET(asmStr), AV_OPT_TYPE_STRING, {.i64 = "avx512"}, 0, 0, FLAGS},
     {NULL}};
 
 AVFILTER_DEFINE_CLASS(raisr);
@@ -112,7 +114,17 @@ static av_cold int init(AVFilterContext *ctx)
     if (strcmp(raisr->range, "full") == 0)
         rangeType = FullRange;
 
-    RNLERRORTYPE ret = RNLHandler_Init(basepath, raisr->ratio, raisr->bits, rangeType, raisr->threadcount, AVX512, raisr->passes, raisr->mode);
+    ASMType asm_t;
+    if (strcmp(raisr->asmStr, "avx2") == 0)
+        asm_t = AVX2;
+    else if (strcmp(raisr->asmStr, "avx512") == 0)
+        asm_t = AVX512;
+    else {
+        av_log(ctx, AV_LOG_VERBOSE, "asm field expects avx2 or avx512 but got: %s\n", raisr->asmStr);
+        return AVERROR(ENOENT);
+    }
+
+    RNLERRORTYPE ret = RNLHandler_Init(basepath, raisr->ratio, raisr->bits, rangeType, raisr->threadcount, asm_t, raisr->passes, raisr->mode);
 
     if (ret != RNLErrorNone)
     {
