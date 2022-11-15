@@ -152,7 +152,7 @@ At this point the source content is the same resolution as the output and the tw
 `./ffmpeg -h filter=raisr`
 
     raisr AVOptions:
-      ratio             <int>        ..FV....... ratio (from 2 to 4) (default 2)
+      ratio             <int>        ..FV....... ratio (currently only ratio of 2 is supported) (from 2 to 2) (default 2)
       bits              <int>        ..FV....... bit depth (from 8 to 10) (default 8)
       range             <string>     ..FV....... color range of the input. If you are working with images, you 
                                                  may want to set range to full (video/full) (default video)
@@ -162,6 +162,7 @@ At this point the source content is the same resolution as the output and the tw
       passes            <int>        ..FV....... passes to run (1: one pass, 2: two pass) (from 1 to 2) (default 1)
       mode              <int>        ..FV....... mode for two pass (1: upscale in 1st pass, 2: upscale in 2nd
                                                  pass) (from 1 to 2) (default 1)
+      asm               <string>     ..FV....... x86 asm type: (avx512 or avx2) (default "avx512")
 
 ## Advanced Usage ( through Exposed Parameters )
 The FFmpeg plugin for Intel Library for VSR exposes a number of parameters that can be changed for advanced customization
@@ -214,6 +215,10 @@ Dictates which pass the upscaling should occur in.  Some filters have the best r
 ```
 ./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:mode=2" -pix_fmt yuv420p /output_files/out.yuv
 ```
+### asm
+Allowable values ("avx512","avx2"), default("avx512")
+
+The VSR Library requires an x86 processor which has the Advanced Vector Extensions 2 (AVX2) available.  AVX2 was first introduced into the Intel Xeon roadmap with Haswell in 2015.  Performance can be further increased if the newer AVX-512 Foundation and Vector Length Extensions are available.  AVX512 was introduced into the Xeon Scalable Processors (Skylake gen) in 2017. The VSR Library will always check for AVX512 first, and fallback to AVX2 in its absense.  However if the use case requires it, this asm parameter allows the default behavior to be changed.
 
 # How to Contribute
 We welcome community contributions to the Open Visual Cloud repositories. If you have any idea how to improve the project, please share it with us.
