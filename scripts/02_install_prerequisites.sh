@@ -47,7 +47,7 @@ cd -
 # build and install x265
 tar xzf ./3.4.tar.gz
 cd x265-3.4/build/linux && \
-    cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DLIB_INSTALL_DIR=/usr/local/lib ../../source && \
+    cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DLIB_INSTALL_DIR=/usr/local/lib -DHIGH_BIT_DEPTH=ON ../../source && \
     make -j $(nproc) && \
     sudo make install
 cd -
