@@ -147,7 +147,7 @@ static void CTCountOfBitsChangedSegment_AVX256_32f(float *LRImage, float *HRImag
                 val_epu16 = _mm256_packus_epi32(val_epi32,val_epi32);
                 perm_epu = _mm256_permute4x64_epi64(val_epu16, 0x88);
                 unsigned short *out = (unsigned short *)outImage;
-                _mm_storeu_si128((__m128i *) &out[(startRow + r) * outImageCols + c], _mm256_extractf128_si256(perm_epu, 0));
+                _mm_storeu_si128((__m128i *) &out[(startRow + r) * outImageCols / sizeof(unsigned short) + c], _mm256_extractf128_si256(perm_epu, 0));
             }
         }
 
@@ -174,7 +174,7 @@ static void CTCountOfBitsChangedSegment_AVX256_32f(float *LRImage, float *HRImag
             }
             else {
                 unsigned short *out = (unsigned short *)outImage;
-                out[(startRow + r) * outImageCols + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
+                out[(startRow + r) * outImageCols / sizeof(unsigned short) + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
             }
         }
     }

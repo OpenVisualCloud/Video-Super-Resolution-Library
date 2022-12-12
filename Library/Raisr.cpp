@@ -627,7 +627,7 @@ static void CTCountOfBitsChangedSegment_AVX2(float *LRImage, float *HRImage, con
             else
             {
                 unsigned short *out = (unsigned short *)outImage;
-                out[(startRow + r) * outImageCols + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
+                out[(startRow + r) * outImageCols / sizeof(unsigned short) + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
             }
         }
     }
@@ -670,7 +670,7 @@ static void CTCountOfBitsChangedSegment(DT *LRImage, DT *HRImage, const int rows
             else
             {
                 unsigned short *out = (unsigned short *)outImage;
-                out[(startRow + r) * outImageCols + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
+                out[(startRow + r) * outImageCols / sizeof(unsigned short) + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
             }
         }
     }
@@ -808,6 +808,8 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
 {
     VideoDataType *inY;
     VideoDataType *outY;
+    int pix_bytes = int((gBitDepth + 7) / 8);
+
     for (int passIdx = 0; passIdx < gPasses; passIdx++)
     {
 #ifdef MEASURE_TIME
@@ -846,7 +848,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         // the step of gIppCtx.segZones[passIdx][threadIdx].inYUpscaled is equal to the outY->width 
         const int rows = outY->height;
         const int cols = outY->width;
-        const int step = outY->width;
+        const int step = outY->width * pix_bytes;
 
         // 1. Prepare cheap up-scaled 32f data
         IppStatus status = ippStsNoErr;
@@ -887,7 +889,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
             ippiConvert_8u32f_C1R(pDst, cols,
                                   pSeg32f, cols * sizeof(float), {(int)cols, segRows});
         else
-            ippiConvert_16u32f_C1R((Ipp16u *)pDst, cols,
+            ippiConvert_16u32f_C1R((Ipp16u *)pDst, step,
                                   pSeg32f, cols * sizeof(float), {(int)cols, segRows});
 
         // 2. Run hashing
@@ -900,24 +902,24 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         {
             // it needs to do memcpy line by line when the line size of outY->pData is not equal to pDst's line size.
             if (step == outY->step) {
-                memcpy(outY->pData, pDst, outY->step * gLoopMargin + gLoopMargin);
+                memcpy(outY->pData, pDst, outY->step * gLoopMargin + gLoopMargin * pix_bytes);
             } else {
                 for (int i = 0; i < gLoopMargin; i++) {
                      memcpy(outY->pData + i * outY->step, pDst + i * step, step);
                 }
-                memcpy(outY->pData + gLoopMargin * outY->step, pDst + gLoopMargin * step, gLoopMargin);
+                memcpy(outY->pData + gLoopMargin * outY->step, pDst + gLoopMargin * step, gLoopMargin * pix_bytes);
             }
         }
         if (endRow == rows)
         {
             if (step == outY->step) {
-                memcpy(outY->pData + (rows - gLoopMargin) * step - gLoopMargin,
-                       pDst + (segRows - gLoopMargin) * step - gLoopMargin,
-                       outY->step * gLoopMargin + gLoopMargin);
+                memcpy(outY->pData + (rows - gLoopMargin) * step - gLoopMargin * pix_bytes,
+                       pDst + (segRows - gLoopMargin) * step - gLoopMargin * pix_bytes,
+                       outY->step * gLoopMargin + gLoopMargin * pix_bytes);
             } else {
-                memcpy(outY->pData + (rows - gLoopMargin - 1) * outY->step +  outY->width - gLoopMargin,
-                       pDst + (segRows - gLoopMargin) * step - gLoopMargin,
-                       gLoopMargin);
+                memcpy(outY->pData + (rows - gLoopMargin - 1) * outY->step +  (outY->width - gLoopMargin) * pix_bytes,
+                       pDst + (segRows - gLoopMargin) * step - gLoopMargin * pix_bytes,
+                       gLoopMargin * pix_bytes);
 
                 for (int i = gLoopMargin; i > 0; i--) {
                      memcpy(outY->pData + (rows - i) * outY->step,
@@ -1030,7 +1032,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                             else
                             {
                                 unsigned short *out = (unsigned short *)outY->pData;
-                                out[r * outY->step + c + pix] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
+                                out[r * outY->step / sizeof(unsigned short) + c + pix] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
                             }
                         }
                     }
@@ -1038,14 +1040,14 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
             }
             // Copy right border pixels for this row and left border pixels for next row
             if (step == outY->step) {
-                memcpy(outY->pData + r * step - gLoopMargin, pDst + rOffset * step - gLoopMargin, 2 * gLoopMargin);
+                memcpy(outY->pData + r * step - gLoopMargin * pix_bytes, pDst + rOffset * step - gLoopMargin * pix_bytes, 2 * gLoopMargin * pix_bytes);
             } else {
-                memcpy(outY->pData + (r -1 ) * outY->step + outY->width - gLoopMargin,
-                       pDst + rOffset * step - gLoopMargin,
-                       gLoopMargin);
+                memcpy(outY->pData + (r -1 ) * outY->step + (outY->width - gLoopMargin) * pix_bytes,
+                       pDst + rOffset * step - gLoopMargin * pix_bytes,
+                       gLoopMargin * pix_bytes);
                 memcpy(outY->pData + r * outY->step,
                        pDst + rOffset * step,
-                       gLoopMargin);
+                       gLoopMargin * pix_bytes);
             }
         }
         // 3. Run CT-Blending
