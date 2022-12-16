@@ -170,6 +170,32 @@ static RNLERRORTYPE VerifyTrainedData(std::string input, std::string file_type, 
     return RNLErrorNone;
 }
 
+RNLERRORTYPE RNLStoi(unsigned int *pValue, const char *configContent, std::string configPath)
+{
+    try
+    {
+        *pValue = std::stoi(configContent);
+        return RNLErrorNone;
+    }
+    catch (const std::invalid_argument &ia)
+    {
+        std::cout << "[RAISR ERROR] configFile corrupted: " << configPath << std::endl;
+        return RNLErrorBadParameter;
+    }
+
+    catch (const std::out_of_range &oor)
+    {
+        std::cout << "[RAISR ERROR] configFile corrupted: " << configPath << std::endl;
+        return RNLErrorBadParameter;
+    }
+
+    catch (const std::exception &e)
+    {
+        std::cout << "[RAISR ERROR] configFile corrupted: " << configPath << std::endl;
+        return RNLErrorBadParameter;
+    }
+}
+
 static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrPath, std::string QCohPath, int pass)
 {
     if (pass == 2)
@@ -195,9 +221,21 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
     std::istringstream filteriss(line);
     std::vector<std::string> filterTokens{std::istream_iterator<std::string>{filteriss},
                                           std::istream_iterator<std::string>{}};
-    unsigned int hashkeySize = std::stoi(filterTokens[0].c_str());
-    unsigned int pixelTypes = std::stoi(filterTokens[1].c_str());
-    unsigned int rows = std::stoi(filterTokens[2].c_str());
+    unsigned int hashkeySize;
+    if (RNLErrorNone != RNLStoi(&hashkeySize, filterTokens[0].c_str(), hashtablePath))
+    {
+        return RNLErrorBadParameter;
+    }
+    unsigned int pixelTypes;
+    if (RNLErrorNone != RNLStoi(&pixelTypes, filterTokens[1].c_str(), hashtablePath))
+    {
+        return RNLErrorBadParameter;
+    }
+    unsigned int rows;
+    if (RNLErrorNone != RNLStoi(&rows, filterTokens[2].c_str(), hashtablePath))
+    {
+        return RNLErrorBadParameter;
+    }
     int aligned_rows = 16 * (int)((rows + 15) / 16);
 
     if (hashkeySize != gQuantizationAngle * gQuantizationStrength * gQuantizationCoherence)
@@ -1229,14 +1267,25 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
         std::cout << "[RAISR ERROR] configFile corrupted: " << configPath << std::endl;
         return RNLErrorBadParameter;
     }
-
-    gQuantizationAngle = std::stoi(configTokens[0].c_str());
+    if (RNLErrorNone != RNLStoi(&gQuantizationAngle, configTokens[0].c_str(), configPath))
+    {
+        return RNLErrorBadParameter;
+    }
     gQAngle = gQuantizationAngle / PI;
-    gQuantizationStrength = std::stoi(configTokens[1].c_str());
-    gQuantizationCoherence = std::stoi(configTokens[2].c_str());
+    if (RNLErrorNone != RNLStoi(&gQuantizationStrength, configTokens[1].c_str(), configPath))
+    {
+        return RNLErrorBadParameter;
+    }
+    if (RNLErrorNone != RNLStoi(&gQuantizationCoherence, configTokens[2].c_str(), configPath))
+    {
+        return RNLErrorBadParameter;
+    }
+
     // Varify hashtable file format
-    gPatchSize = std::stoi(configTokens[3].c_str());
-    ;
+    if (RNLErrorNone != RNLStoi(&gPatchSize, configTokens[3].c_str(), configPath))
+    {
+        return RNLErrorBadParameter;
+    };
     gPatchMargin = gPatchSize >> 1;
     gLoopMargin = (gPatchSize >> 1) + 1;
     gResizeExpand = (gLoopMargin + 2);
