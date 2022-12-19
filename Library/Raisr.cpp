@@ -294,6 +294,12 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
             std::istringstream new_iss(line);
             std::vector<std::string> new_tokens{std::istream_iterator<std::string>{new_iss},
                                                 std::istream_iterator<std::string>{}};
+
+            if (new_tokens.size() != gPatchSize * gPatchSize) {
+                std::cout << "[RAISR ERROR] hashtable corrupted: " << hashtablePath << std::endl;
+                return RNLErrorBadParameter;
+            }
+
             float *currentfilter = &AFilters[num * aligned_rows];
 
             for (const auto &value : new_tokens)
