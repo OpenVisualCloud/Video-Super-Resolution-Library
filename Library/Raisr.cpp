@@ -278,7 +278,7 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
         while (getline(filterFile, line))
         {
             // too much lines in the file
-            if (num > (hashkeySize * pixelTypes))
+            if (num >= (hashkeySize * pixelTypes))
             {
                 std::cout << "[RAISR ERROR] hashtable corrupted: " << hashtablePath << std::endl;
                 return RNLErrorBadParameter;
