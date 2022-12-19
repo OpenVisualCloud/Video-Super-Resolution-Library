@@ -1293,6 +1293,11 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     {
         return RNLErrorBadParameter;
     }
+    if (gPatchSize != 11)
+    {
+        std::cout << "[RAISR ERROR] configFile corrupted: " << configPath << std::endl;
+        return RNLErrorBadParameter;
+    }
     gPatchMargin = gPatchSize >> 1;
     gLoopMargin = (gPatchSize >> 1) + 1;
     gResizeExpand = (gLoopMargin + 2);
