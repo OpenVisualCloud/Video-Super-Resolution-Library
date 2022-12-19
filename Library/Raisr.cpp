@@ -1285,7 +1285,7 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     if (RNLErrorNone != RNLStoi(&gPatchSize, configTokens[3].c_str(), configPath))
     {
         return RNLErrorBadParameter;
-    };
+    }
     gPatchMargin = gPatchSize >> 1;
     gLoopMargin = (gPatchSize >> 1) + 1;
     gResizeExpand = (gLoopMargin + 2);
