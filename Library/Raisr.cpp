@@ -174,7 +174,14 @@ RNLERRORTYPE RNLStoi(unsigned int *pValue, const char *configContent, std::strin
 {
     try
     {
-        *pValue = std::stoi(configContent);
+        int tmp;
+        tmp = std::stoi(configContent);
+        if (tmp < 0)
+        {
+            std::cout << "[RAISR ERROR] configFile corrupted: " << configPath << std::endl;
+            return RNLErrorBadParameter;
+        }
+        *pValue = tmp;
         return RNLErrorNone;
     }
     catch (const std::invalid_argument &ia)
