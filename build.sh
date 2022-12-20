@@ -24,7 +24,7 @@ build() (
     while [ -n "$*" ]; do
         case "$(printf %s "$1" | tr '[:upper:]' '[:lower:]')" in
         no_docker) docker_flag=false && shift ;;
-        *) break ;; 
+        *) break ;;
         esac
     done
     if $docker_flag; then
@@ -58,7 +58,7 @@ build() (
     cp build/Library/libraisr.a .
 
     if [ "$docker_flag" = "true" ]; then
-        docker build -t raisr .
+        docker build --build-arg http_proxy=${http_proxy} --build-arg https_proxy=${https_proxy} -t   raisr .
     fi
 )
 

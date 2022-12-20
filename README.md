@@ -53,7 +53,7 @@ In the top level directory of the repository, run
 ``` 
 sudo -E ./build.sh
 ```
-The library and docker image will automatically be built within 'build.sh'.
+The library and docker image will automatically be built within `build.sh`. It needs to set `http_proxy` and `https_proxy` enviroment variables before runing `build.sh` to build docker image.
 
 If the user is not root and does not have sudo permission, it is assumed that the user has been added to the Docker cgroup and the user must provide the path to the install directory when building. 
 ```
