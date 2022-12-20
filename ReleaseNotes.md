@@ -1,4 +1,26 @@
 # Intel® Library for Video Super Resolution (Intel® Library for VSR) Release Notes
+
+# New and Changed in Release v22.12
+
+**v22.12**
+
+## New Features
+- Support the use of Intel AVX2 instructions. See README for usage.
+- Performance Optimizations: improved performance via using AVX2 instructions to enhance some functions.
+- Add scripts that support setup Raisr without internet access. These scripts are in scripts folder.
+
+## Bug Fixes
+- Fixed ffmpeg compilation issue with low GCC 7.5.0.
+- Fixed the issue that some video resolutions were not working correctly.
+- Ehanced inspection of inputs.
+
+## Known Limitations
+- Only 2x upscaling supported. Ratio passed into RNLInit should be set to 2.
+- patchSize passed into RNLInit must be set to 11. Algorithms are currently tuned to work only with a patch size of 11. Values other than 11 will fail.
+- For usage of Intel AVX2, system hardware must be run on Intel Haswell Processor or later. For usage of Intel AVX-512, system hardware must be run on Intel Xeon Scalable Processesors (1st Gen or later, Skylake or later )
+
+# Release Notes in Release v22.9
+
 **v22.9**
 
 This release is packaged as a docker container and should contain everything one needs to evaluate the super resolution upscaling of the Intel Library for VSR.  This project is under active development, but is well suited for evaluation.  Please refer to the included README for guidance surrounding building the plugin and running it.

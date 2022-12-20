@@ -9,7 +9,7 @@ To build this project you will need:
 - Compiler (clang++, g++) 
 - Cmake version 3.14 or later 
 - Intel® Integrated Performance Primitives (Intel® IPP) (Stand-Alone Version is the minimum requirement)
-- (optional) libx264, libx265, zlib1g-dev
+- (optional) libx264, libx265, zlib1g-dev, pkg-config (The pkg-config is used to find x264.pc/x265.pc in specific pkgconfig path.)
 
 ## Install Intel IPP
 Standalone version of IPP (minimum requirement): https://www.intel.com/content/www/us/en/developer/articles/tool/oneapi-standalone-components.html#ipp \
