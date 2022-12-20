@@ -2,7 +2,7 @@
  * Intel Library for Video Super Resolution
  *
  * Copyright (c) 2022 Intel Corporation
- * All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 #include "Raisr_globals.h"
 #include "Raisr_AVX256.h"
