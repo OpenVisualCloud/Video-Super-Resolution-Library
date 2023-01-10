@@ -933,7 +933,13 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         else // no upscaling in this pass
         {
             Ipp8u *pSrc8u = inY->pData + inY->step * startRow; // inY is already upscaled
-            memcpy(pDst, pSrc8u, step * segRows);
+
+            if (step == inY->step) {
+                memcpy(pDst, pSrc8u, inY->step * segRows);
+            } else {
+                for (int i = 0; i < segRows; ++i)
+                    memcpy(pDst + step * i, pSrc8u + inY->step * i, step);
+            }
         }
 
         if (gBitDepth == 8)
@@ -1347,33 +1353,27 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
 RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *inCb,
                        VideoDataType *outY, VideoDataType *outCr, VideoDataType *outCb)
 {
-    int rows, cols;
+    int rows, cols, step;
     IppStatus status = ippStsNoErr;
 
     if (gPasses == 2 && gTwoPassMode == 2)
     {
         rows = inY->height;
         cols = inY->width;
+        step = inY->step;
     }
     else
     {
         rows = outY->height;
         cols = outY->width;
+        step = outY->step;
     }
 
     if (gPasses == 2)
     {
         gIntermediateY = new VideoDataType;
-        if (gBitDepth == 8)
-        {
-            gIntermediateY->pData = new unsigned char[cols * rows];
-            gIntermediateY->step = cols;
-        }
-        else
-        {
-            gIntermediateY->pData = new unsigned char[cols * rows * BYTES_16BITS];
-            gIntermediateY->step = cols * BYTES_16BITS;
-        }
+        gIntermediateY->pData = new unsigned char[step * rows];
+        gIntermediateY->step = step;
         gIntermediateY->width = cols;
         gIntermediateY->height = rows;
     }
@@ -1449,7 +1449,7 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
             if (startRow >= rows)
             {
                 if (i == (gPasses - 1))
-                	gThreadCount = threadIdx + 1;
+                       gThreadCount = threadIdx + 1;
                 break;
             }
         }
