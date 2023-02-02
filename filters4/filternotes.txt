@@ -1,3 +1,4 @@
-1. Filters trained on 5000 images of coco_val with random degradation (bicubic, bilinear, lanczos, blur, blur+bicubic)
-2. Angle=80 Strength=10 Coherence=10 setting for both filters
-3. 2nd pass filters trained on higher sharpened HR as reference (s=1.5)
+1. Filters trained on 675 images of pexels with bilinear degradation
+2. Angle=24 Strength=3 Coherence=3 setting for both filters
+3. Cheapupscale: using output with bilinear upscaling for 1st pass, using output from 1st pass filter as cheapupscale of 2nd pass.
+4. 1st and 2nd pass filters both trained on higher sharpened HR as reference (s=1.5)

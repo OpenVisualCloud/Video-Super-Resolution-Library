@@ -103,7 +103,7 @@ The ffmmpeg confiure command is as: \
 `make -j $(nproc)`
 
 ### Copy RAISR filter folder to FFmpeg folder
-The folder contains filterbin_partialCV2, Qfactor_cohbin_partialCV2, and Qfactor_strbin_partialCV2 \
+The folder contains filterbin_2_8/10, Qfactor_cohbin_2_8/10, and Qfactor_strbin_2_8/10 \
 `cp -r ../Video-Super-Resolution-Library/filters* .`
 
 ## Running the Intel Library for VSR 
@@ -171,9 +171,10 @@ Allowable values (1,120), default (20)
 
 Changes the number of software threads used in the algorithm.  Values 1..120 will operate on segments of an image such that efficient threading can greatly increase the performance of the upscale.  The value itself is the number of threads allocated.
 ### filterfolder
-Allowable values: (Any folder path containing the 4 required filter files: Qfactor_cohbin_partialCV2, Qfactor_strbin_partialCV2, filterbin_partialCV2, config), default (“filters1”)
+Allowable values: (Any folder path containing the 4 required filter files: Qfactor_cohbin_2_8/10, Qfactor_strbin_2_8/10, filterbin_2_8/10, config), default (“filters1”)
 
-Changing the way RAISR is trained (using different parameters and datasets) can alter the way RAISR's ML-based algorithms do upscale.  For the current release, 5 filters have been provided: filters1, filters2, filters3, filters4 and filters5.  Each filter has been generated with varying amounts of complexity and sharpness.
+Changing the way RAISR is trained (using different parameters and datasets) can alter the way RAISR's ML-based algorithms do upscale.  For the current release, 5 filters have been provided: filters1, filters2, filters3, filters4 and filters5.  Each filter has been generated with varying amounts of complexity and sharpness. For filters4 the 1st and 2nd pass filters both trained on sharpened HR as reference, for other filters only 2nd pass filters trained on shaprpened HR as reference
+and you can find the training informantion in filternotes.txt of each filters folder.
 
 If doing a single pass ( passes=1 ), it is suggested to use filters1 or filters4.  With passes=2 the 5 filters are described as:
 | filter name | filter complexity | sharpness |
@@ -181,11 +182,11 @@ If doing a single pass ( passes=1 ), it is suggested to use filters1 or filters4
 | filters1    | 864x2             | high |
 | filters2    | 864x2             | low |
 | filters3    | 864x2             | medium |
-| filters4    | 32000x2           | medium |
+| filters4    | 864x2             | high |
 | filters5    | 32000x2           | high |
 
 Please see the examples under the "Evaluating the Quality" section above where we suggest 3 command lines based upon preference.
-Note that for second pass to work, the filter folder must contain 3 additional files: Qfactor_cohbin_partialCV2_2, Qfactor_strbin_partialCV2_2, filterbin_partialCV2_2
+Note that for second pass to work, the filter folder must contain 3 additional files: Qfactor_cohbin_2_8/10_2, Qfactor_strbin_2_8/10_2, filterbin_2_8/10_2
 ### bits
 Allowable values (8: 8-bit depth, 10: 10-bit depth), default (8)
 
@@ -207,7 +208,7 @@ The library holds two different functions which blend the initial (cheap) upscal
 ### passes
 Allowable values (1,2), default(1)
 
-`passes=2` enables a second pass.  Adding a second pass can further enhance the output image quality, but doubles the time to upscale.  Note that for second pass to work, the filter folder must contain 3 additional files: Qfactor_cohbin_partialCV2_2, Qfactor_strbin_partialCV2_2, filterbin_partialCV2_2
+`passes=2` enables a second pass.  Adding a second pass can further enhance the output image quality, but doubles the time to upscale.  Note that for second pass to work, the filter folder must contain 3 additional files: Qfactor_cohbin_2_8/10_2, Qfactor_strbin_2_8/10_2, filterbin_2_8/10_2
 ### mode
 Allowable values (1,2), default(1).  Requires flag passes=2”
 
