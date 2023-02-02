@@ -999,7 +999,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
             // update coordinate: convert r to coordinate in seg buffer pSeg32f
             // NOTE: use rOffset with pSeg32f
             int rOffset = r - gIppCtx.segZones[passIdx][threadIdx].scaleStartRow;
-            for (int c = gLoopMargin; c <= cols - gLoopMargin; c += unrollSizePatchBased)
+            for (int c = gLoopMargin; c + unrollSizePatchBased <= cols - gLoopMargin; c += unrollSizePatchBased)
             {
 #pragma unroll(unrollSizePatchBased)
                 for (pix = 0; pix < unrollSizePatchBased; pix++)
