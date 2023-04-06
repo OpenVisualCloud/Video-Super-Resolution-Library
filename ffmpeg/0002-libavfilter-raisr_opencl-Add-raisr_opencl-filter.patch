@@ -1,0 +1,53 @@
+From a59cf20b7f0208bc46ac3776111df5c147e8f116 Mon Sep 17 00:00:00 2001
+From: Wenbin Chen <wenbin.chen@intel.com>
+Date: Thu, 6 Apr 2023 13:48:23 +0800
+Subject: [PATCH] libavfilter/raisr_opencl: Add raisr_opencl filter
+
+Add raisr_opencl filter
+
+Signed-off-by: Wenbin Chen <wenbin.chen@intel.com>
+---
+ configure                | 1 +
+ libavfilter/Makefile     | 1 +
+ libavfilter/allfilters.c | 1 +
+ 3 files changed, 3 insertions(+)
+
+diff --git a/configure b/configure
+index b247d1b621..4759634d4c 100755
+--- a/configure
++++ b/configure
+@@ -3661,6 +3661,7 @@ tonemap_opencl_filter_deps="opencl const_nan"
+ transpose_opencl_filter_deps="opencl"
+ transpose_vaapi_filter_deps="vaapi VAProcPipelineCaps_rotation_flags"
+ unsharp_opencl_filter_deps="opencl"
++raisr_opencl_filter_deps="opencl"
+ uspp_filter_deps="gpl avcodec"
+ vaguedenoiser_filter_deps="gpl"
+ vidstabdetect_filter_deps="libvidstab"
+diff --git a/libavfilter/Makefile b/libavfilter/Makefile
+index 66f93cef13..b3445c33c7 100644
+--- a/libavfilter/Makefile
++++ b/libavfilter/Makefile
+@@ -484,6 +484,7 @@ OBJS-$(CONFIG_WEAVE_FILTER)                  += vf_weave.o
+ OBJS-$(CONFIG_XBR_FILTER)                    += vf_xbr.o
+ OBJS-$(CONFIG_XFADE_FILTER)                  += vf_xfade.o
+ OBJS-$(CONFIG_XFADE_OPENCL_FILTER)           += vf_xfade_opencl.o opencl.o opencl/xfade.o
++OBJS-$(CONFIG_RAISR_OPENCL_FILTER)           += vf_raisr_opencl.o opencl.o
+ OBJS-$(CONFIG_XMEDIAN_FILTER)                += vf_xmedian.o framesync.o
+ OBJS-$(CONFIG_XSTACK_FILTER)                 += vf_stack.o framesync.o
+ OBJS-$(CONFIG_YADIF_FILTER)                  += vf_yadif.o yadif_common.o
+diff --git a/libavfilter/allfilters.c b/libavfilter/allfilters.c
+index 50a90054ba..4f55bd488d 100644
+--- a/libavfilter/allfilters.c
++++ b/libavfilter/allfilters.c
+@@ -361,6 +361,7 @@ extern AVFilter ff_vf_pullup;
+ extern AVFilter ff_vf_qp;
+ extern AVFilter ff_vf_raisr;
+ extern AVFilter ff_vf_random;
++extern AVFilter ff_vf_raisr_opencl;
+ extern AVFilter ff_vf_readeia608;
+ extern AVFilter ff_vf_readvitc;
+ extern AVFilter ff_vf_realtime;
+-- 
+2.34.1
+
