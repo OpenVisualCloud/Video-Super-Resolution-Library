@@ -24,6 +24,7 @@ build() (
     while [ -n "$*" ]; do
         case "$(printf %s "$1" | tr '[:upper:]' '[:lower:]')" in
         no_docker) docker_flag=false && shift ;;
+        centos_docker)  docker build --build-arg http_proxy=${http_proxy} --build-arg https_proxy=${https_proxy} -f Dockerfile.Centos7.9 -t  centos:raisr . && return 0 ;;
         *) break ;;
         esac
     done

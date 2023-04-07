@@ -1,0 +1,101 @@
+FROM centos:centos7.9.2009
+
+WORKDIR /opt/build
+
+# download and install dependencies
+RUN yum install -y -q epel-release centos-release-scl && rm -rf /var/yum/cache/* && \
+    yum install -y git wget gcc-c++ make bzip2 libmpc-devel && \
+    wget https://registrationcenter-download.intel.com/akdlm/irc_nas/19007/l_ipp_oneapi_p_2021.6.2.16995_offline.sh && \
+    chmod +x ./l_ipp_oneapi_p_2021.6.2.16995_offline.sh && \
+    ./l_ipp_oneapi_p_2021.6.2.16995_offline.sh -a -s --eula accept
+
+RUN wget https://ftp.gnu.org/gnu/gcc/gcc-11.2.0/gcc-11.2.0.tar.gz --no-check-certificate && \
+    tar -xvf ./gcc-11.2.0.tar.gz && \
+    cd ./gcc-11.2.0 && \
+    ./configure --prefix=/usr --enable-multilib --enable-languages=c,c++ -disable-multilib && \
+    make -j$(nproc) && \
+    make install
+
+ARG CMAKE=https://cmake.org/files/v3.14/cmake-3.14.0.tar.gz
+RUN wget ${CMAKE} && \
+    tar zxf ./cmake-3.14.0.tar.gz && \
+    cd cmake-3.14.0 && \
+    ./bootstrap --prefix=/usr/local && \
+    make -j $(nproc) && \
+    make install
+
+ARG NASM=https://www.nasm.us/pub/nasm/releasebuilds/2.15.05/nasm-2.15.05.tar.bz2
+RUN wget ${NASM} --no-check-certificate && \
+    tar xjf ./nasm-2.15.05.tar.bz2 && \
+    cd nasm-2.15.05 && \
+    ./autogen.sh && \
+    ./configure --prefix=/usr/local --libdir=/usr/local/lib && \
+    make -j $(nproc) && \
+    make install
+
+RUN git clone https://github.com/mirror/x264 -b stable --depth 1 && \
+    cd x264 && \
+    ./configure --prefix=/usr/local --libdir=/usr/local/lib \
+    --enable-shared && \
+    make -j $(nproc) && \
+    make install
+
+ARG LIBX265=https://github.com/videolan/x265/archive/3.4.tar.gz
+RUN wget ${LIBX265} && \
+    tar xzf ./3.4.tar.gz && \
+    cd x265-3.4/build/linux && \
+    cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DHIGH_BIT_DEPTH=ON ../../source && \
+    make -j$(nproc) && \
+    make install
+
+# download raisr and ffmpeg
+RUN git clone https://github.com/OpenVisualCloud/Video-Super-Resolution-Library.git && \
+    git clone https://github.com/FFmpeg/FFmpeg.git ffmpeg && \
+    cd ffmpeg && \
+    git checkout -b n4.4 n4.4 && \
+    git config --global user.email "you@example.com" && \
+    git am ../Video-Super-Resolution-Library/ffmpeg/0001-ffmpeg-raisr-filter.patch
+
+RUN rm l_ipp_oneapi_p_2021.6.2.16995_offline.sh  && \
+    rm 3.4.tar.gz  && \
+    rm cmake-3.14.0.tar.gz  && \
+    rm nasm-2.15.05.tar.bz2  && \
+    rm gcc-11.2.0.tar.gz  && \
+    rm -rf ./x264  && \
+    rm -rf ./x265-3.4  && \
+    rm -rf ./cmake-3.14.0  && \
+    rm -rf ./nasm-2.15.05  && \
+    rm -rf ./gcc-11.2.0
+
+# Build raisr and ffmpeg
+ENV PKG_CONFIG_PATH "/usr/local/lib/pkgconfig"
+
+ENV CPATH "/opt/intel/oneapi/ipp/latest/include"
+ENV IPPROOT "/opt/intel/oneapi/ipp/latest"
+ENV IPP_TARGET_ARCH "intel64"
+ENV LD_LIBRARY_PATH "/opt/intel/oneapi/ipp/latest/lib/intel64:/usr/local/lib"
+ENV LIBRARY_PATH "/opt/intel/oneapi/ipp/latest/lib/intel64"
+
+WORKDIR /opt/build/Video-Super-Resolution-Library
+RUN ./build.sh no_docker
+
+WORKDIR /opt/build/ffmpeg
+RUN cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr.c libavfilter/ && \
+    ./configure \
+    --enable-libipp \
+    --extra-cflags="-fopenmp" \
+    --extra-ldflags=-fopenmp\
+    --enable-gpl \
+    --enable-libx264 \
+    --enable-libx265 \
+    --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' \
+    --enable-cross-compile && \  
+    make clean && \
+    make -j $(nproc) && \
+    make install
+
+# Copy the raisr filters from the raisr library
+RUN cp -r ../Video-Super-Resolution-Library/filters* .
+
+# Run ffmpeg and verify that the raisr filter is supported
+RUN ./ffmpeg -h filter=raisr
