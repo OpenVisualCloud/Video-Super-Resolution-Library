@@ -26,7 +26,9 @@
 #include "Raisr_AVX512.cpp"
 #endif
 
+#ifdef ENABLE_RAISR_OPENCL
 #include "Raisr_OpenCL.h"
+#endif
 
 #ifndef WIN32
 #include <unistd.h>
@@ -1138,6 +1140,7 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
         !inY || !inY->pData || !outY || !outY->pData)
         return RNLErrorBadParameter;
 
+#ifdef ENABLE_RAISR_OPENCL
     RNLERRORTYPE ret = RNLErrorNone;
     int nbComponent = 1;
     if (!inCb->pData)
@@ -1187,6 +1190,7 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
         }
         return ret;
     }
+#endif
 
     if (!inCb || !inCb->pData || !outCb || !outCb->pData)
         return RNLErrorBadParameter;
@@ -1230,10 +1234,12 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
 }
 
 RNLERRORTYPE RNLSetOpenCLContext(void *context, void *deviceID, int platformIndex, int deviceIndex) {
+#ifdef ENABLE_RAISR_OPENCL
     gOpenCLContext.context = (cl_context)context;
     gOpenCLContext.deviceID = (cl_device_id)deviceID;
     gOpenCLContext.platformIndex = platformIndex;
     gOpenCLContext.deviceIndex = deviceIndex;
+#endif
     return RNLErrorNone;
 }
 
@@ -1321,6 +1327,14 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
         }
     }
 #endif
+    if (gAsmType == OpenCL || gAsmType == OpenCLExternal) {
+#ifdef ENABLE_RAISR_OPENCL
+        std::cout << "ASM Type: OpenCL\n";
+#else
+        std::cout << "ASM Type: OpenCL requested, but OpenCL is not enabled.\n";
+        return RNLErrorBadParameter;
+#endif
+    }
     if (gAsmType == AVX2) {
         if (machine_supports_feature(gMachineVendorType, AVX2)) {
             std::cout << "ASM Type: AVX2\n";
@@ -1410,6 +1424,7 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     gThreadCount = threadCount;
     gPool = new ThreadPool(gThreadCount);
 
+#ifdef ENABLE_RAISR_OPENCL
     RNLERRORTYPE err;
     if (gAsmType == OpenCLExternal && (!gOpenCLContext.context || !gOpenCLContext.deviceID)) {
         std::cout << "[RAISR OPENCL ERROR] When use OpenCLExternal mode,"
@@ -1440,6 +1455,7 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
             std::cout << "[RAISR OPENCL ERROR] Init Raisr OpenCL error." << std::endl;
             return err;
         }
+#endif
 
     return RNLErrorNone;
 }
@@ -1449,7 +1465,7 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
 {
     int rows, cols, step;
     IppStatus status = ippStsNoErr;
-
+#ifdef ENABLE_RAISR_OPENCL
     if (gAsmType == OpenCL || gAsmType == OpenCLExternal) {
         RNLERRORTYPE ret = RNLErrorNone;
         int nbComponent = 1;
@@ -1464,6 +1480,7 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
         } else
             return RNLErrorNone;
     }
+#endif
 
     if (gPasses == 2 && gTwoPassMode == 2)
     {
@@ -1577,6 +1594,7 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
 
 RNLERRORTYPE RNLDeinit()
 {
+#ifdef ENABLE_RAISR_OPENCL
     if (gAsmType == OpenCL || gAsmType == OpenCLExternal) {
         RaisrOpenCLRelease(&gOpenCLContext);
         delete gPool;
@@ -1586,6 +1604,7 @@ RNLERRORTYPE RNLDeinit()
         delete[] gPGaussian;
         return RNLErrorNone;
     }
+#endif
 
     for (int threadIdx = 0; threadIdx < gThreadCount; threadIdx++)
     {

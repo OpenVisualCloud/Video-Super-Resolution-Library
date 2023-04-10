@@ -64,6 +64,11 @@ endforeach()
 
 endif(UNIX)
 
+option( ENABLE_RAISR_OPENCL "Build with OpenCL?" OFF )
+if (ENABLE_RAISR_OPENCL)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_RAISR_OPENCL")
+endif()
+
 
 # Intel Library for Video Super Resolution
 add_subdirectory(Library)
