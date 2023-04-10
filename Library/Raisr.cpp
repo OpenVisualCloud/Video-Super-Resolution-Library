@@ -26,6 +26,8 @@
 #include "Raisr_AVX512.cpp"
 #endif
 
+#include "Raisr_OpenCL.h"
+
 #ifndef WIN32
 #include <unistd.h>
 #endif
@@ -1133,8 +1135,60 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
                         VideoDataType *outY, VideoDataType *outCr, VideoDataType *outCb, BlendingMode blendingMode)
 {
     if (!inCr || !inCr->pData || !outCr || !outCr->pData ||
-        !inCb || !inCb->pData || !outCb || !outCb->pData ||
         !inY || !inY->pData || !outY || !outY->pData)
+        return RNLErrorBadParameter;
+
+    RNLERRORTYPE ret = RNLErrorNone;
+    int nbComponent = 1;
+    if (!inCb->pData)
+        nbComponent = 2;
+    if (gAsmType == OpenCL) {
+        ret = RaisrOpenCLProcessY(&gOpenCLContext, inY->pData, inY->width, inY->height, inY->step,
+                                  outY->pData, outY->step, inY->bitShift, blendingMode);
+        if (ret != RNLErrorNone) {
+            std::cout << "[RAISR OPENCL ERROR] Process src Y failed." << std::endl;
+            return RNLErrorUndefined;
+        }
+        ret = RaisrOpenCLProcessUV(&gOpenCLContext, inCr->pData, inCr->width, inCr->height, inCr->step,
+                                   outCr->pData, outCr->step, inCr->bitShift, nbComponent);
+        if (ret != RNLErrorNone) {
+            std::cout << "[RAISR OPENCL ERROR] Process src Cr failed." << std::endl;
+            return RNLErrorUndefined;
+        }
+        if (nbComponent == 1) {
+            ret = RaisrOpenCLProcessUV(&gOpenCLContext, inCb->pData, inCb->width, inCb->height, inCb->step,
+                                       outCb->pData, outCb->step, inCb->bitShift, nbComponent);
+            if (ret != RNLErrorNone) {
+                std::cout << "[RAISR OPENCL ERROR] Process src Cb failed." << std::endl;
+                return RNLErrorUndefined;
+            }
+        }
+        return ret;
+    } else if (gAsmType == OpenCLExternal) {
+        ret = RaisrOpenCLProcessImageY(&gOpenCLContext, (cl_mem)inY->pData, inY->width, inY->height,
+                                       (cl_mem)outY->pData, inY->bitShift, blendingMode);
+        if (ret != RNLErrorNone) {
+            std::cout << "[RAISR OPENCL ERROR] Process clImage Y failed." << std::endl;
+            return RNLErrorUndefined;
+        }
+        ret = RaisrOpenCLProcessImageUV(&gOpenCLContext, (cl_mem)inCr->pData, inCr->width, inCr->height,
+                                        (cl_mem)outCr->pData, inCr->bitShift, nbComponent);
+        if (ret != RNLErrorNone) {
+            std::cout << "[RAISR OPENCL ERROR] Process clImage Cr failed." << std::endl;
+            return RNLErrorUndefined;
+        }
+        if (nbComponent == 1) {
+            ret = RaisrOpenCLProcessImageUV(&gOpenCLContext, (cl_mem)inCb->pData, inCb->width, inCb->height,
+                                            (cl_mem)outCb->pData, inCb->bitShift, nbComponent);
+            if (ret != RNLErrorNone) {
+                std::cout << "[RAISR OPENCL ERROR] Process clImage Cb failed." << std::endl;
+                return RNLErrorUndefined;
+        }
+        }
+        return ret;
+    }
+
+    if (!inCb || !inCb->pData || !outCb || !outCb->pData)
         return RNLErrorBadParameter;
 
     memset((void *)threadStatus, 0, 120 * sizeof(threadStatus[0]));
@@ -1172,6 +1226,14 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
         result.get();
     }
 
+    return RNLErrorNone;
+}
+
+RNLERRORTYPE RNLSetOpenCLContext(void *context, void *deviceID, int platformIndex, int deviceIndex) {
+    gOpenCLContext.context = (cl_context)context;
+    gOpenCLContext.deviceID = (cl_device_id)deviceID;
+    gOpenCLContext.platformIndex = platformIndex;
+    gOpenCLContext.deviceIndex = deviceIndex;
     return RNLErrorNone;
 }
 
@@ -1244,9 +1306,10 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     gRatio = ratio;
     gAsmType = asmType;
 #ifdef __AVX512F__
-    if ( gAsmType != AVX512 && gAsmType != AVX2) gAsmType = AVX512;
+    if ( gAsmType != AVX512 && gAsmType != AVX2 &&
+         gAsmType != OpenCL && gAsmType != OpenCLExternal) gAsmType = AVX512;
 #else
-    if ( gAsmType != AVX2) gAsmType = AVX2;
+    if ( gAsmType != AVX2 && gAsmType != OpenCL && gAsmType != OpenCLExternal) gAsmType = AVX2;
 #endif
 #ifdef __AVX512F__
     if ( gAsmType == AVX512) {
@@ -1347,6 +1410,37 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     gThreadCount = threadCount;
     gPool = new ThreadPool(gThreadCount);
 
+    RNLERRORTYPE err;
+    if (gAsmType == OpenCLExternal && (!gOpenCLContext.context || !gOpenCLContext.deviceID)) {
+        std::cout << "[RAISR OPENCL ERROR] When use OpenCLExternal mode,"
+                     "RNLSetExternalOpenCLContext() should be called before init." << std::endl;
+        return RNLErrorBadParameter;
+    }
+    gOpenCLContext.gRatio = gRatio;
+    gOpenCLContext.gAsmType = gAsmType;
+    gOpenCLContext.gBitDepth = gBitDepth;
+    gOpenCLContext.gQuantizationAngle = gQuantizationAngle;
+    gOpenCLContext.gQuantizationStrength = gQuantizationStrength;
+    gOpenCLContext.gQuantizationCoherence = gQuantizationCoherence;
+    gOpenCLContext.gPatchSize = gPatchSize;
+    gOpenCLContext.gQStr = gQStr;
+    gOpenCLContext.gQCoh = gQCoh;
+    gOpenCLContext.gQStr2 = gQStr2;
+    gOpenCLContext.gQCoh2 = gQCoh2;
+    gOpenCLContext.gFilterBuffer = gFilterBuffer;
+    gOpenCLContext.gFilterBuffer2 = gFilterBuffer2;
+    gOpenCLContext.gPasses = gPasses;
+    gOpenCLContext.gTwoPassMode = gTwoPassMode;
+    gOpenCLContext.gMin8bit = gMin8bit;
+    gOpenCLContext.gMax8bit = gMax8bit;
+    gOpenCLContext.gMin16bit = gMin16bit;
+    gOpenCLContext.gMax16bit = gMax16bit;
+    if (gAsmType == OpenCL || gAsmType == OpenCLExternal)
+        if ((err = RaisrOpenCLInit(&gOpenCLContext)) != RNLErrorNone) {
+            std::cout << "[RAISR OPENCL ERROR] Init Raisr OpenCL error." << std::endl;
+            return err;
+        }
+
     return RNLErrorNone;
 }
 
@@ -1355,6 +1449,21 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
 {
     int rows, cols, step;
     IppStatus status = ippStsNoErr;
+
+    if (gAsmType == OpenCL || gAsmType == OpenCLExternal) {
+        RNLERRORTYPE ret = RNLErrorNone;
+        int nbComponent = 1;
+        if (!inCb->pData)
+            nbComponent = 2;
+
+        ret = RaisrOpenCLSetRes(&gOpenCLContext, inY->width, inY->height,
+                                inCr->width, inCr->height, nbComponent);
+        if (ret != RNLErrorNone) {
+            std::cout << "[RAISR OPENCL ERROR] Set resolution error." << std::endl;
+            return ret;
+        } else
+            return RNLErrorNone;
+    }
 
     if (gPasses == 2 && gTwoPassMode == 2)
     {
@@ -1468,6 +1577,15 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
 
 RNLERRORTYPE RNLDeinit()
 {
+    if (gAsmType == OpenCL || gAsmType == OpenCLExternal) {
+        RaisrOpenCLRelease(&gOpenCLContext);
+        delete gPool;
+        if (gPasses == 2)
+            delete[] gFilterBuffer2;
+        delete[] gFilterBuffer;
+        delete[] gPGaussian;
+        return RNLErrorNone;
+    }
 
     for (int threadIdx = 0; threadIdx < gThreadCount; threadIdx++)
     {

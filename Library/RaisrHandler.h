@@ -39,6 +39,12 @@ extern "C"
         VideoDataType *outCb,
         BlendingMode blendingMode);
 
+    extern RNLERRORTYPE RNLHandler_SetOpenCLContext(
+        void *context,
+        void *device_id,
+        int platformIndex,
+        int deviceIndex);
+
     extern RNLERRORTYPE RNLHandler_Deinit();
 #ifdef __cplusplus
 }

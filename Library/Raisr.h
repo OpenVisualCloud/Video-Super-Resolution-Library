@@ -27,4 +27,7 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
                         VideoDataType *outY, VideoDataType *outCr, VideoDataType *outCb,
                         BlendingMode blendingMode = CountOfBitsChanged);
 
+RNLERRORTYPE RNLSetOpenCLContext(void *context, void *device_id,
+                                 int platformIndex, int deviceIndex);
+
 RNLERRORTYPE RNLDeinit();

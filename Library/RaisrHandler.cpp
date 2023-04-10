@@ -45,6 +45,15 @@ RNLERRORTYPE RNLHandler_Process(
     return RNLProcess(inY, inU, inV, outY, outU, outV, blendingMode);
 }
 
+RNLERRORTYPE RNLHandler_SetOpenCLContext(
+        void *context,
+        void *device_id,
+        int platformIndex,
+        int deviceIndex)
+{
+    return RNLSetOpenCLContext(context, device_id, platformIndex, deviceIndex);
+}
+
 RNLERRORTYPE RNLHandler_Deinit()
 {
     return RNLDeinit();

@@ -16,6 +16,7 @@ typedef struct VideoDataType
     unsigned int width;
     unsigned int height;
     unsigned int step; // distance(in bytes) between the starting points of lines in the image buffer
+    unsigned int bitShift; //Number of least significant bits that must be shifted away to get the value.
 } VideoDataType;
 
 typedef enum RNLERRORTYPE
@@ -36,7 +37,9 @@ typedef enum BlendingMode
 typedef enum ASMType
 {
     AVX2 = 1,
-    AVX512 = 2
+    AVX512 = 2,
+    OpenCL = 3,
+    OpenCLExternal = 4
 } ASMType;
 
 typedef enum MachineVendorType

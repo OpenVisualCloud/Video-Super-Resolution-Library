@@ -9,6 +9,7 @@
 #include <ipp.h>
 #include "ThreadPool.h"
 #include "RaisrDefaults.h"
+#include "Raisr_OpenCL.h"
 
 /************************************************************
  *   const variables
@@ -134,6 +135,8 @@ enum class CHANNEL
  ************************************************************/
 // IPP context
 ippContext gIppCtx;
+
+RaisrOpenCLContext gOpenCLContext = { 0 };
 
 // Quantization values
 static unsigned int gQuantizationAngle;

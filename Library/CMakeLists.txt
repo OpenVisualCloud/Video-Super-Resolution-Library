@@ -8,6 +8,13 @@ else()
 message("Building AVX2 only")
 endif()
 
+find_package (PkgConfig REQUIRED)
+pkg_check_modules (OPENCL REQUIRED OpenCL)
+include_directories (${OPENCL_INCLUDE_DIRS})
+link_directories (${OPENCL_LIBRARY_DIRS})
+list(APPEND SOURCES Raisr_OpenCL.cpp)
+list(APPEND HEADERS Raisr_OpenCL.h Raisr_OpenCL_kernel.h)
+
 add_library(raisr STATIC ${SOURCES} ${HEADERS})
 
 # Link our library
@@ -26,7 +33,7 @@ find_library(IPP_VM ippvm.lib PATHS     "C:/Program Files (x86)/Intel/oneAPI/ipp
 find_library(IPP_S ipps.lib PATHS       "C:/Program Files (x86)/Intel/oneAPI/ipp/2021.2.0/lib/intel64")
 find_library(IPP_I ippi.lib PATHS       "C:/Program Files (x86)/Intel/oneAPI/ipp/2021.2.0/lib/intel64")
 endif(UNIX)
-target_link_libraries(raisr ${IPP_I} ${IPP_VM} ${IPP_S} ${IPP_CORE} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(raisr ${IPP_I} ${IPP_VM} ${IPP_S} ${IPP_CORE} ${CMAKE_THREAD_LIBS_INIT} ${OPENCL_LIBRARIES})
   include(GNUInstallDirs)
   install(DIRECTORY "." DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/raisr" FILES_MATCHING PATTERN "*.h")
   install(TARGETS "raisr" LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
