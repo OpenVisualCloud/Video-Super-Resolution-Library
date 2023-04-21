@@ -56,6 +56,17 @@ The x264/x265 libraries can be installed via apt on Ubuntu OS or built and insta
 The `.pc` files of x264 and x265 libraries are in `/usr/local/lib/pkgconfig`, add the path to the `PKG_CONFIG_PATH` environment variable. \
 `export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig/:$PKG_CONFIG_PATH`
 
+## Install Opencl
+Follow this guide to setup gpu driver [installation](https://dgpu-docs.intel.com/driver/installation.html) \
+Install OpenCL: \
+`sudo apt update` \
+`sudo apt install libopencv-dev` \
+`sudo apt install intel-opencl-icd opencl-headers ocl-icd-opencl-dev clinfo` \
+`sudo apt install mesa-opencl-icd` \
+
+### Install Intel latest OpenCL driver
+[intel/compute-runtime](https://github.com/intel/compute-runtime/releases)
+
 ## Use FFmpeg RAISR plugin
 
 ### Build and install the Intel® Library for VSR with Docker
@@ -86,6 +97,9 @@ If the user would prefer not to use Docker, these instructions may be utilized t
 To build the library without building the docker image, run \
 `./build.sh no_docker -DCMAKE_INSTALL_PREFIX="$PWD/install"`
 
+To build the library with OpenCL support, run \
+`./build.sh no_docker -DCMAKE_INSTALL_PREFIX="$PWD/install" -DENABLE_RAISR_OPENCL=ON`
+
 #### Clone FFmpeg
 `git clone https://github.com/FFmpeg/FFmpeg ffmpeg` \
 `cd ffmpeg`
@@ -94,10 +108,14 @@ To build the library without building the docker image, run \
 `git checkout release/4.4`
 
 #### Copy vf_raisr.c to ffmpeg libavfilter folder
-`cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr.c libavfilter/`
+`cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr.c libavfilter/` \
+To use raisr_opencl you need ot copy vf_raisr_opencl.c as well \
+`cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr_opencl.c libavfilter/`
 
 #### Apply patch
-`git am ../Video-Super-Resolution-Library/ffmpeg/0001-ffmpeg-raisr-filter.patch`
+`git am ../Video-Super-Resolution-Library/ffmpeg/0001-ffmpeg-raisr-filter.patch` \
+To use raisr_opencl you need to apply patch 0002 as well \
+`git am ../Video-Super-Resolution-Library/ffmpeg/0002-libavfilter-raisr_opencl-Add-raisr_opencl-filter.patch`
 
 #### Configure FFmpeg
 When `DCMAKE_INSTALL_PREFIX` isn't used, the ffmpeg configure command is as: \
@@ -107,6 +125,8 @@ When `DCMAKE_INSTALL_PREFIX` is used, please add the below line to the ffmpeg co
 `--extra-cflags=="-fopenmp -I../Video-Super-Resolution-Library/install/include/" --extra-ldflags="-fopenmp -L../Video-Super-Resolution-Library/install/lib/"` \
 The ffmmpeg confiure command is as: \
 `./configure --enable-libipp --extra-cflags="-fopenmp -I../Video-Super-Resolution-Library/install/include/" --extra-ldflags="-fopenmp -L../Video-Super-Resolution-Library/install/lib/" --enable-gpl --enable-libx264 --enable-libx265 --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' --enable-cross-compile`
+
+Add option `--enable-opencl` to enable `raisr_opencl` filter.
 
 #### Build FFmpeg
 `make clean` \

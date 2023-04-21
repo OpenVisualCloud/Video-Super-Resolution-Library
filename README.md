@@ -44,6 +44,19 @@ Evaluating the quality of the RAISR can be done in different ways.
 ./ffmpeg -y -i /input_files/input.mp4 -vf scale=iw/2:ih/2,raisr=threadcount=20 -pix_fmt yuv420p /output_files/out.yuv
 ```
 At this point the source content is the same resolution as the output and the two can be compared to understand how well the super resolution is working.  RAISR can be compared against existing DL super resolution algorithms as well.  It is recommended to enable second pass in Intel Library for VSR to produce sharper images.  Please see the Advanced Usage section for guidance on enabling second pass as a feature.
+**OpenCL acceleration**
+```
+./ffmpeg -y -i /input_files/input.mp4 -vf raisr=asm=opencl -pix_fmt yuv420p /output_files/out.yuv
+```
+or user can use filter "raisr_opencl" to build full gpu pipeline. \
+[ffmpeg-qsv](https://trac.ffmpeg.org/wiki/Hardware/QuickSync) \
+[ffmpeg-vaapi](https://trac.ffmpeg.org/wiki/Hardware/VAAPI)
+```
+ffmpeg -init_hw_device vaapi=va -init_hw_device qsv=qs@va -init_hw_device opencl=ocl@va -hwaccel qsv -c:v h264_qsv -i input.264 -vf "hwmap=derive_device=opencl,format=opencl,raisr_opencl,hwmap=derive_device=qsv:reverse=1:extra_hw_frames=16" -c:v hevc_qsv output.mp4
+```
+```
+ffmpeg -init_hw_device vaapi=va -init_hw_device opencl=ocl@va -hwaccel vaapi -hwaccel_output_format vaapi -i input.264 -vf "hwmap=derive_device=opencl,format=opencl,raisr_opencl,hwmap=derive_device=vaapi:reverse=1:extra_hw_frames=16" -c:v hevc_vaapi output.mp4
+```
 
 
 ## To see help on the RAISR filter
@@ -115,9 +128,9 @@ Dictates which pass the upscaling should occur in.  Some filters have the best r
 ./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:mode=2" -pix_fmt yuv420p /output_files/out.yuv
 ```
 ### asm
-Allowable values ("avx512","avx2"), default("avx512")
+Allowable values ("avx512","avx2","opencl"), default("avx512")
 
-The VSR Library requires an x86 processor which has the Advanced Vector Extensions 2 (AVX2) available.  AVX2 was first introduced into the Intel Xeon roadmap with Haswell in 2015.  Performance can be further increased if the newer AVX-512 Foundation and Vector Length Extensions are available.  AVX512 was introduced into the Xeon Scalable Processors (Skylake gen) in 2017. The VSR Library will always check for AVX512 first, and fallback to AVX2 in its absense.  However if the use case requires it, this asm parameter allows the default behavior to be changed.
+The VSR Library requires an x86 processor which has the Advanced Vector Extensions 2 (AVX2) available.  AVX2 was first introduced into the Intel Xeon roadmap with Haswell in 2015.  Performance can be further increased if the newer AVX-512 Foundation and Vector Length Extensions are available.  AVX512 was introduced into the Xeon Scalable Processors (Skylake gen) in 2017. The VSR Library will always check for AVX512 first, and fallback to AVX2 in its absense.  However if the use case requires it, this asm parameter allows the default behavior to be changed. User can also choose opencl if the opencl is supported in their system.
 
 # How to Contribute
 We welcome community contributions to the Open Visual Cloud repositories. If you have any idea how to improve the project, please share it with us.
