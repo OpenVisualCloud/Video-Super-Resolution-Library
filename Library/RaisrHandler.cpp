@@ -47,5 +47,5 @@ RNLERRORTYPE RNLHandler_Process(
 
 RNLERRORTYPE RNLHandler_Deinit()
 {
-    return RNLErrorNone;
+    return RNLDeinit();
 }
