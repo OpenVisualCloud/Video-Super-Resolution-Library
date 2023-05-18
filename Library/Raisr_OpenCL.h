@@ -1,3 +1,9 @@
+/**
+ * Intel Library for Video Super Resolution
+ *
+ * Copyright (c) 2023 Intel Corporation
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 #pragma once
 
 #ifndef CL_TARGET_OPENCL_VERSION

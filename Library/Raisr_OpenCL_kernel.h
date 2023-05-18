@@ -1,3 +1,9 @@
+/**
+ * Intel Library for Video Super Resolution
+ *
+ * Copyright (c) 2023 Intel Corporation
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 const char* gFilterShader =
 "#define scale %d\n"
 "#define patchlength %d\n"
