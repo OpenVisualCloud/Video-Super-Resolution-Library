@@ -1518,6 +1518,7 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
         cols = (i == 1 ? outY->width : cols);
         int startRow = 0, endRow = 0, segHeight = 0;
         int rowsPerThread = ceil(rows / gThreadCount);
+        rowsPerThread -= rowsPerThread % 2;
         int rowsOfRemainder = rows - rowsPerThread * gThreadCount;
 
         for (int threadIdx = 0; threadIdx < gThreadCount; threadIdx++)
@@ -1525,7 +1526,7 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
             threadStatus[threadIdx] = 0;
             if (threadIdx != gThreadCount - 1) // some middle threads cover 1 more row, having loopsOfRemainder divided evenly.
             {
-                endRow = (threadIdx < rowsOfRemainder) ? (startRow + rowsPerThread + 1) : (startRow + rowsPerThread);
+                endRow = (threadIdx < rowsOfRemainder / 2) ? (startRow + rowsPerThread + 2) : (startRow + rowsPerThread);
             }
             else
             {
