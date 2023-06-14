@@ -1517,7 +1517,7 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
         rows = (i == 1 ? outY->height : rows);
         cols = (i == 1 ? outY->width : cols);
         int startRow = 0, endRow = 0, segHeight = 0;
-        int rowsPerThread = ceil(rows / gThreadCount);
+        int rowsPerThread = ceil(float(rows) / gThreadCount);
         rowsPerThread -= rowsPerThread % 2;
         int rowsOfRemainder = rows - rowsPerThread * gThreadCount;
 
