@@ -124,7 +124,7 @@ When `DCMAKE_INSTALL_PREFIX` is used, please add the below line to the ffmpeg co
 The ffmmpeg confiure command is as: \
 `./configure --enable-libipp --extra-cflags="-fopenmp -I../Video-Super-Resolution-Library/install/include/" --extra-ldflags="-fopenmp -L../Video-Super-Resolution-Library/install/lib/" --enable-gpl --enable-libx264 --enable-libx265 --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' --enable-cross-compile`
 
-Add option `--enable-opencl` to enable `raisr_opencl` filter.
+Add option `--enable-opencl` and `-lm` to `--extra-libs` option to enable `raisr_opencl` filter.
 
 #### Build FFmpeg
 `make clean` \

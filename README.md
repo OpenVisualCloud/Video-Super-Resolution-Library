@@ -11,7 +11,7 @@ One should be able to test with video files:
 ```
 Or folders of images:
 ```
-./ffmpeg -y -start_number 000 -i '/input_files/img_%03d.png' -vf raisr=threadcount=20 -start_number 000 '/output_files/img_%03d.png'
+./ffmpeg -y -start_number 000 -i '/input_files/img_%03d.png' -vf scale=out_range=full,raisr=threadcount=20 -start_number 000 '/output_files/img_%03d.png'
 ```
 Because saving raw uncompressed (.yuv) video can take up a lot of disk space, one could consider using the lossless (-crf 0) setting in x264/x265 to reduce the output file size by a substantial amount.
 
