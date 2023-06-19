@@ -154,7 +154,8 @@ static av_cold int init(AVFilterContext *ctx)
 static int query_formats(AVFilterContext *ctx)
 {
     int raisr_fmts[] = {AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10LE,
-                        AV_PIX_FMT_YUV422P, AV_PIX_FMT_YUV422P10LE, AV_PIX_FMT_NONE};
+                        AV_PIX_FMT_YUV422P, AV_PIX_FMT_YUV422P10LE, AV_PIX_FMT_YUV444P,
+                        AV_PIX_FMT_YUV444P10LE, AV_PIX_FMT_NONE};
     AVFilterFormats *fmts_list;
 
     fmts_list = ff_make_format_list(raisr_fmts);
