@@ -52,6 +52,15 @@ int inline CTRandomness_AVX256_32f(float *inYUpscaled32f, int cols, int r, int c
     return census_count;
 }
 
+inline __m256i HAMMING_DISTANCE_EPI32( __m256i hammDist, __m256 neigh_LR, __m256 center_LR, __m256 neigh_HR, __m256 center_HR) {
+    const __m256i one_epi32 = _mm256_set1_epi32(1);
+    return _mm256_add_epi32( hammDist,
+                             _mm256_abs_epi32(_mm256_sub_epi32(
+                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(neigh_LR, center_LR, _CMP_LT_OQ))),
+                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(neigh_HR, center_HR, _CMP_LT_OQ))))));
+
+}
+
 // LRImage: cheap up scaled. HRImage: RAISR refined. outImage: output buffer in 8u.
 // rows: rows of LRImage/HRImage. startRow: seg start row. blendingZone: zone to run blending.
 // cols: stride for buffers in DT type.
@@ -94,38 +103,14 @@ static void CTCountOfBitsChangedSegment_AVX256_32f(float *LRImage, float *HRImag
             __m256 n7_HR_ps = _mm256_loadu_ps( &HRImage[(r+1) * cols + (c)]);
             __m256 n8_HR_ps = _mm256_loadu_ps( &HRImage[(r+1) * cols + (c+1)]);
 
-            hammingDistance_epi32 = _mm256_add_epi32( hammingDistance_epi32,
-                                        _mm256_abs_epi32(_mm256_sub_epi32(
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n1_LR_ps, center_LR_ps, cmp_le))),
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n1_HR_ps, center_HR_ps, cmp_le))))));
-            hammingDistance_epi32 = _mm256_add_epi32( hammingDistance_epi32,
-                                        _mm256_abs_epi32(_mm256_sub_epi32(
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n2_LR_ps, center_LR_ps, cmp_le))),
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n2_HR_ps, center_HR_ps, cmp_le))))));
-            hammingDistance_epi32 = _mm256_add_epi32( hammingDistance_epi32,
-                                        _mm256_abs_epi32(_mm256_sub_epi32(
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n3_LR_ps, center_LR_ps, cmp_le))),
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n3_HR_ps, center_HR_ps, cmp_le))))));
-            hammingDistance_epi32 = _mm256_add_epi32( hammingDistance_epi32,
-                                        _mm256_abs_epi32(_mm256_sub_epi32(
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n4_LR_ps, center_LR_ps, cmp_le))),
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n4_HR_ps, center_HR_ps, cmp_le))))));
-            hammingDistance_epi32 = _mm256_add_epi32( hammingDistance_epi32,
-                                        _mm256_abs_epi32(_mm256_sub_epi32(
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n5_LR_ps, center_LR_ps, cmp_le))),
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n5_HR_ps, center_HR_ps, cmp_le))))));
-            hammingDistance_epi32 = _mm256_add_epi32( hammingDistance_epi32,
-                                        _mm256_abs_epi32(_mm256_sub_epi32(
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n6_LR_ps, center_LR_ps, cmp_le))),
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n6_HR_ps, center_HR_ps, cmp_le))))));
-            hammingDistance_epi32 = _mm256_add_epi32( hammingDistance_epi32,
-                                        _mm256_abs_epi32(_mm256_sub_epi32(
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n7_LR_ps, center_LR_ps, cmp_le))),
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n7_HR_ps, center_HR_ps, cmp_le))))));
-            hammingDistance_epi32 = _mm256_add_epi32( hammingDistance_epi32,
-                                        _mm256_abs_epi32(_mm256_sub_epi32(
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n8_LR_ps, center_LR_ps, cmp_le))),
-                                            _mm256_and_si256(one_epi32, _mm256_castps_si256(_mm256_cmp_ps(n8_HR_ps, center_HR_ps, cmp_le))))));
+            hammingDistance_epi32 = HAMMING_DISTANCE_EPI32(hammingDistance_epi32, n1_LR_ps, center_LR_ps, n1_HR_ps, center_HR_ps);
+            hammingDistance_epi32 = HAMMING_DISTANCE_EPI32(hammingDistance_epi32, n2_LR_ps, center_LR_ps, n2_HR_ps, center_HR_ps);
+            hammingDistance_epi32 = HAMMING_DISTANCE_EPI32(hammingDistance_epi32, n3_LR_ps, center_LR_ps, n3_HR_ps, center_HR_ps);
+            hammingDistance_epi32 = HAMMING_DISTANCE_EPI32(hammingDistance_epi32, n4_LR_ps, center_LR_ps, n4_HR_ps, center_HR_ps);
+            hammingDistance_epi32 = HAMMING_DISTANCE_EPI32(hammingDistance_epi32, n5_LR_ps, center_LR_ps, n5_HR_ps, center_HR_ps);
+            hammingDistance_epi32 = HAMMING_DISTANCE_EPI32(hammingDistance_epi32, n6_LR_ps, center_LR_ps, n6_HR_ps, center_HR_ps);
+            hammingDistance_epi32 = HAMMING_DISTANCE_EPI32(hammingDistance_epi32, n7_LR_ps, center_LR_ps, n7_HR_ps, center_HR_ps);
+            hammingDistance_epi32 = HAMMING_DISTANCE_EPI32(hammingDistance_epi32, n8_LR_ps, center_LR_ps, n8_HR_ps, center_HR_ps);
 
             __m256 weight_ps = _mm256_div_ps( _mm256_cvtepi32_ps(hammingDistance_epi32), _mm256_set1_ps((float) CTnumberofPixel) );
             __m256 weight2_ps = _mm256_sub_ps(one_ps, weight_ps);
