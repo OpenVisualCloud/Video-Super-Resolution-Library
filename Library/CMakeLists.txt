@@ -1,6 +1,10 @@
 set(SOURCES Raisr_AVX256.cpp Raisr.cpp RaisrHandler.cpp)
 set(HEADERS Raisr_globals.h Raisr_AVX256.h Raisr.h ThreadPool.h RaisrHandler.h RaisrDefaults.h)
 
+if( HAVE_AVX512FP16 )
+message("Building AVX512FP16 library")
+list(APPEND SOURCES Raisr_AVX512FP16.cpp Raisr_AVX512FP16.h)
+endif()
 if( HAVE_AVX512 )
 message("Building AVX512 library")
 list(APPEND SOURCES Raisr_AVX512.cpp Raisr_AVX512.h)
