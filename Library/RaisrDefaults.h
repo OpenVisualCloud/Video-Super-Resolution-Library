@@ -39,7 +39,8 @@ typedef enum ASMType
     AVX2 = 1,
     AVX512 = 2,
     OpenCL = 3,
-    OpenCLExternal = 4
+    OpenCLExternal = 4,
+    AVX512_FP16 = 5
 } ASMType;
 
 typedef enum MachineVendorType

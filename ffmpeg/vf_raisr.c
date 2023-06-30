@@ -123,6 +123,8 @@ static av_cold int init(AVFilterContext *ctx)
         asm_t = AVX512;
     else if (strcmp(raisr->asmStr, "opencl") == 0)
         asm_t = OpenCL;
+    else if (strcmp(raisr->asmStr, "avx512fp16") == 0)
+        asm_t = AVX512_FP16;
     else {
         av_log(ctx, AV_LOG_VERBOSE, "asm field expects avx2 or avx512 but got: %s\n", raisr->asmStr);
         return AVERROR(ENOENT);

@@ -71,7 +71,14 @@ static bool machine_supports_feature(MachineVendorType vendor, ASMType type)
     if (vendor == INTEL ) {
         __get_cpuid_count(0x7, 0x0, &eax, &ebx, &ecx, &edx);
 
-        if (type == AVX512) {
+        if (type == AVX512_FP16) {
+            // check for avx512fp16 and avx512vl flags
+            if ( ((edx >> 23) & 0x1)
+                && ((ebx >> 31) & 0x1) )
+            {
+                ret = true;
+            }
+        } else if (type == AVX512) {
             // check for avx512f and avx512vl flags
             if ( ((ebx >> 16) & 0x1)
                 && ((ebx >> 31) & 0x1) )
@@ -89,8 +96,9 @@ static bool machine_supports_feature(MachineVendorType vendor, ASMType type)
     else if (vendor == AMD)
     {
         __get_cpuid_count(0x7, 0x0, &eax, &ebx, &ecx, &edx);
-
-        if (type == AVX512) {
+        if (type == AVX512_FP16) {
+            ret = false;
+        } else if (type == AVX512) {
             ret = false;
         } else if (type == AVX2) {
             if ( (ebx >> 5) & 0x1)
@@ -1318,11 +1326,25 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     {
         gUsePixelType = false;
     }
+#ifdef __AVX512FP16__
+    if ( gAsmType > AVX512_FP16 || gAsmType < AVX2 ) gAsmType = AVX512_FP16;
+#else
 #ifdef __AVX512F__
     if ( gAsmType != AVX512 && gAsmType != AVX2 &&
          gAsmType != OpenCL && gAsmType != OpenCLExternal) gAsmType = AVX512;
 #else
     if ( gAsmType != AVX2 && gAsmType != OpenCL && gAsmType != OpenCLExternal) gAsmType = AVX2;
+#endif
+#endif
+#ifdef __AVX512FP16__
+    if ( gAsmType == AVX512_FP16) {
+        if (machine_supports_feature(gMachineVendorType, AVX512_FP16)) {
+            std::cout << "ASM Type: AVX512FP16\n";
+        } else {
+            std::cout << "ASM Type: AVX512FP16 requested, but machine does not support it.  Changing to AVX512\n";
+            gAsmType = AVX512;
+        }
+    }
 #endif
 #ifdef __AVX512F__
     if ( gAsmType == AVX512) {
