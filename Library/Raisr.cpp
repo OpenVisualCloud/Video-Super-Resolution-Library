@@ -25,6 +25,10 @@
 #include "Raisr_AVX512.h"
 #include "Raisr_AVX512.cpp"
 #endif
+#ifdef __AVX512FP16__
+#include "Raisr_AVX512FP16.h"
+#include "Raisr_AVX512FP16.cpp"
+#endif
 
 #ifdef ENABLE_RAISR_OPENCL
 #include "Raisr_OpenCL.h"
@@ -110,6 +114,42 @@ static bool machine_supports_feature(MachineVendorType vendor, ASMType type)
     return ret;
 }
 
+void inline Convert_8u16f_8bit(Ipp8u *input, _Float16 *output, int cols, int rows) {
+    for (int j = 0; j < rows; j++) {
+        int c_limit_avx = cols - (cols%32);
+        _Float16* outBuff = &((output)[j*cols]);
+        Ipp8u* inBuff = &((input)[j*cols]);
+        for (int i = 0; i < c_limit_avx; i +=32) {
+            __m256i in_epu8 = _mm256_loadu_si256((__m256i *) inBuff);
+            __m512h out_ph = _mm512_cvt_roundepu16_ph( _mm512_cvtepu8_epi16(in_epu8), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+            _mm512_storeu_ph(outBuff, out_ph);
+            inBuff += 32; outBuff += 32;
+        }
+        for (int i = c_limit_avx; i < cols; i++) { // remainders
+            (output)[j*cols+i] = (_Float16)((input)[j*cols+i]);
+        }
+    }
+}
+
+void inline Convert_8u16f_10bit(Ipp16u *input, _Float16 *output, int cols, int rows) {
+    for (int j = 0; j < rows; j++) {
+        int c_limit_avx = cols - (cols%32);
+        _Float16* outBuff = &((output)[j*cols]);
+        Ipp16u* inBuff = &((input)[j*cols]);
+        for (int i = 0; i < c_limit_avx; i+=32) {
+            __m512i in_epu16 = _mm512_loadu_si512(inBuff);
+            __m512h out_ph = _mm512_cvt_roundepu16_ph(in_epu16, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+            _mm512_storeu_ph(outBuff, out_ph);
+
+            inBuff += 32; outBuff += 32;
+        }
+        for (int i = c_limit_avx; i < cols; i++) { // remainders
+            (output)[j*cols+i] = (_Float16)((input)[j*cols+i]);
+        }
+    }
+}
+
+
 template <typename DT>
 static void createGaussianKernel(int n, double sigma, DT *result)
 {
@@ -125,7 +165,7 @@ static void createGaussianKernel(int n, double sigma, DT *result)
     DT sum = DT(0);
     for (int i = 0, x = 1 - n; i < n2_; i++, x += 2)
     {
-        DT t = std::exp(DT(x * x) * scale2X);
+        DT t = std::exp(float(x * x) * float(scale2X));
         values.push_back(t);
         sum += t;
     }
@@ -215,7 +255,8 @@ RNLERRORTYPE RNLStoi(unsigned int *pValue, const char *configContent, std::strin
     }
 }
 
-static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrPath, std::string QCohPath, int pass)
+template <typename DT>
+static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrPath, std::string QCohPath, int pass, std::vector<std::vector<DT*>>& filterBuckets_in, DT* *filterBuffer_in)
 {
     if (pass == 2)
     {
@@ -223,8 +264,8 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
         QStrPath += "_2";
         QCohPath += "_2";
     }
-    auto &filterBuckets = (pass == 1) ? gFilterBuckets : gFilterBuckets2;
-    auto &filterBuffer = (pass == 1) ? gFilterBuffer : gFilterBuffer2;
+    auto &filterBuckets = filterBuckets_in;
+    auto &filterBuffer = *filterBuffer_in;
     auto &QStr = (pass == 1) ? gQStr : gQStr2;
     auto &QCoh = (pass == 1) ? gQCoh : gQCoh2;
 
@@ -285,10 +326,10 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
     }
 
     // allocate contiguous memory to hold all filters
-    filterBuffer = new float[aligned_rows * hashkeySize * pixelTypes + 16];
+    filterBuffer = new DT[aligned_rows * hashkeySize * pixelTypes + 16];
     uint64_t Aoffset = (uint64_t)filterBuffer & 0x3f;
-    float *AFilters = &filterBuffer[16 - (int)(Aoffset / sizeof(float))];
-    memset(AFilters, 0, sizeof(float) * aligned_rows * hashkeySize * pixelTypes);
+    DT *AFilters = &filterBuffer[16 - (int)(Aoffset / sizeof(DT))];
+    memset(AFilters, 0, sizeof(DT) * aligned_rows * hashkeySize * pixelTypes);
 
     int num = 0;
     try
@@ -312,11 +353,11 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
                 return RNLErrorBadParameter;
             }
 
-            float *currentfilter = &AFilters[num * aligned_rows];
+            DT *currentfilter = &AFilters[num * aligned_rows];
 
             for (const auto &value : new_tokens)
             {
-                currentfilter[k] = std::stod(value.c_str());
+                currentfilter[k] = (DT) std::stod(value.c_str());
                 k++;
             }
 
@@ -953,13 +994,22 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                     memcpy(pDst + step * i, pSrc8u + inY->step * i, step);
             }
         }
-
+#ifdef __AVX512FP16__
+        if (gAsmType == AVX512_FP16) {
+            if (gBitDepth == 8)
+                Convert_8u16f_8bit(pDst, (_Float16*)pSeg32f, cols, segRows);
+            else
+                Convert_8u16f_10bit((Ipp16u *)pDst, (_Float16*)pSeg32f, cols, segRows);
+        } else
+#endif
+        {
         if (gBitDepth == 8)
             ippiConvert_8u32f_C1R(pDst, cols,
                                   pSeg32f, cols * sizeof(float), {(int)cols, segRows});
         else
             ippiConvert_16u32f_C1R((Ipp16u *)pDst, step,
                                   pSeg32f, cols * sizeof(float), {(int)cols, segRows});
+        }
 
         // 2. Run hashing
         // Update startRow, endRow for hashing algo
@@ -997,7 +1047,14 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                 }
             }
         }
-        memcpy(pRaisr32f, pSeg32f, sizeof(float) * cols * segRows);
+#ifdef __AVX512FP16__
+        if (gAsmType == AVX512_FP16) {
+            memcpy(pRaisr32f, pSeg32f, sizeof(_Float16) * cols * segRows);
+        } else
+#endif
+        {
+            memcpy(pRaisr32f, pSeg32f, sizeof(float) * cols * segRows);
+        }
 
         startRow = startRow < gLoopMargin ? gLoopMargin : startRow;
         endRow = endRow > (rows - gLoopMargin) ? (rows - gLoopMargin) : endRow;
@@ -1009,6 +1066,10 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         float pixbuf[unrollSizePatchBased][128] __attribute__((aligned(64)));
         int pix;
         int census = 0;
+#ifdef __AVX512FP16__
+        const _Float16 *fbase_fp16[unrollSizePatchBased];
+        _Float16 pixbuf_fp16[unrollSizePatchBased][128] __attribute__((aligned(64)));
+#endif
 
         memset(pixbuf, 0, sizeof(float) * unrollSizePatchBased * 128);
         // NOTE: (r, c) is coordinate in the full HR image, which represents area processed by RAISR
@@ -1037,6 +1098,10 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                     else if (gAsmType == AVX512)
                         computeGTWG_Segment_AVX512_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
 #endif
+#ifdef __AVX512FP16__
+                    else if (gAsmType == AVX512_FP16)
+                        computeGTWG_Segment_AVX512FP16_16f((_Float16 *)pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf_fp16[2 * pix][0], &pixbuf_fp16[2 * pix + 1][0]);
+ #endif
                     else
                     {
                         std::cout << "expected avx512 or avx2, but got " << gAsmType << std::endl;
@@ -1048,6 +1113,13 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
 
                 for (pix = 0; pix < unrollSizePatchBased; pix++)
                 {
+#ifdef __AVX512FP16__
+                    if (passIdx == 0 && gAsmType == AVX512_FP16)
+                        fbase_fp16[pix] = gFilterBuckets_fp16[hashValue[pix]][pixelType[pix]];
+                    else if (passIdx == 1 && gAsmType == AVX512_FP16)
+                        fbase_fp16[pix] = gFilterBuckets2_fp16[hashValue[pix]][pixelType[pix]];
+                    else
+#endif
                     if (passIdx == 0)
                         fbase[pix] = gFilterBuckets[hashValue[pix]][pixelType[pix]];
                     else
@@ -1060,22 +1132,39 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                     if (likely(c + pix < cols - gLoopMargin))
                     {
                         float curPix;
+                        _Float16 curPix_fp16;
+
                         if (gAsmType == AVX2)
                             curPix  = DotProdPatch_AVX256_32f(pixbuf[pix], fbase[pix]);
 #ifdef __AVX512F__
                         else if (gAsmType == AVX512)
                             curPix  = DotProdPatch_AVX512_32f(pixbuf[pix], fbase[pix]);
 #endif
+#ifdef __AVX512FP16__
+                        else if (gAsmType == AVX512_FP16)
+                            curPix_fp16 = (float) DotProdPatch_AVX512FP16_16f(pixbuf_fp16[pix], fbase_fp16[pix]);
+ #endif
                         else 
                         {
                             std::cout << "expected avx512 or avx2, but got " << gAsmType << std::endl;
                             return RNLErrorBadParameter;
                         }
+#ifdef __AVX512FP16__
+                        if (gAsmType == AVX512_FP16) {
+                            if ((gBitDepth == 8 && curPix_fp16 > gMin8bit && curPix_fp16 < gMax8bit) ||
+                                (gBitDepth != 8 && curPix_fp16 > gMin16bit && curPix_fp16 < gMax16bit))
+                                ((_Float16*)pRaisr32f)[rOffset * cols + c + pix] = curPix_fp16;
+                            else
+                                curPix_fp16 = ((_Float16*)pSeg32f)[rOffset * cols + c + pix];
+                        } else
+#endif
+                        {
                         if ((gBitDepth == 8 && curPix > gMin8bit && curPix < gMax8bit) ||
                             (gBitDepth != 8 && curPix > gMin16bit && curPix < gMax16bit))
                             pRaisr32f[rOffset * cols + c + pix] = curPix;
                         else
                             curPix = pSeg32f[rOffset * cols + c + pix];
+                        }
 
                         // CT-Blending, CTRandomness
                         if (blendingMode == Randomness)
@@ -1086,6 +1175,10 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                             else if (gAsmType == AVX512)
                                 census = CTRandomness_AVX512_32f(pSeg32f, cols, rOffset, c, pix);
 #endif
+#ifdef __AVX512FP16__
+                            else if (gAsmType == AVX512_FP16)
+                                census = CTRandomness_AVX512FP16_16f((_Float16*)pSeg32f, cols, rOffset, c, pix);
+#endif
                             else
                             {
                                 std::cout << "expected avx512 or avx2, but got " << gAsmType << std::endl;
@@ -1094,7 +1187,13 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
 
                             float weight = (float)census / (float)CTnumberofPixel;
                             // position in the whole image: r * cols + c + pix
-                            float val = weight * curPix + (1 - weight) * pSeg32f[rOffset * cols + c + pix];
+                            float val;
+#ifdef __AVX512FP16__
+                            if (gAsmType == AVX512_FP16)
+                                val = weight * curPix_fp16 + (1 - weight) * ((_Float16*)pSeg32f)[rOffset * cols + c + pix];
+                            else
+#endif
+                            val = weight * curPix + (1 - weight) * pSeg32f[rOffset * cols + c + pix];
 
                             val += 0.5; // to round the value
                             if (gBitDepth == 8)
@@ -1126,7 +1225,12 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         if (blendingMode == CountOfBitsChanged)
         {
             int segStart = gIppCtx.segZones[passIdx][threadIdx].scaleStartRow;
-            CTCountOfBitsChangedSegment_AVX256_32f(pSeg32f, pRaisr32f, segRows, segStart, {gIppCtx.segZones[passIdx][threadIdx].blendingStartRow, gIppCtx.segZones[passIdx][threadIdx].blendingEndRow}, outY->pData, cols, outY->step);
+            if (gAsmType != AVX512_FP16)
+                CTCountOfBitsChangedSegment_AVX256_32f(pSeg32f, pRaisr32f, segRows, segStart, {gIppCtx.segZones[passIdx][threadIdx].blendingStartRow, gIppCtx.segZones[passIdx][threadIdx].blendingEndRow}, outY->pData, cols, outY->step);
+#ifdef __AVX512FP16__
+            else
+                CTCountOfBitsChangedSegment_AVX512FP16_16f((_Float16*)pSeg32f, (_Float16*)pRaisr32f, segRows, segStart, {gIppCtx.segZones[passIdx][threadIdx].blendingStartRow, gIppCtx.segZones[passIdx][threadIdx].blendingEndRow}, outY->pData, cols, outY->step);
+#endif
         }
 
         threadStatus[threadIdx] = 1;
@@ -1423,28 +1527,62 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     g64AlinedgPatchAreaSize = ((patchAreaSize + 64 - 1) / 64) * 64;
     configFile.close();
 
-    if (RNLErrorNone != ReadTrainedData(hashtablePath, QStrPath, QCohPath, 1 /*first pass*/))
+#ifdef __AVX512FP16__
+    if (gAsmType == AVX512_FP16) {
+        if (RNLErrorNone != ReadTrainedData<_Float16>(hashtablePath, QStrPath, QCohPath, 1 /*first pass*/, gFilterBuckets_fp16, &gFilterBuffer_fp16))
+            return RNLErrorBadParameter;
+        if (gPasses == 2 && RNLErrorNone != ReadTrainedData<_Float16>(hashtablePath, QStrPath, QCohPath, 2 /*second pass*/, gFilterBuckets2_fp16, &gFilterBuffer2_fp16))
+            return RNLErrorBadParameter;
+    } else
+#endif
+    {
+    if (RNLErrorNone != ReadTrainedData<float>(hashtablePath, QStrPath, QCohPath, 1 /*first pass*/, gFilterBuckets, &gFilterBuffer))
         return RNLErrorBadParameter;
 
-    if (gPasses == 2 && RNLErrorNone != ReadTrainedData(hashtablePath, QStrPath, QCohPath, 2 /*second pass*/))
+    if (gPasses == 2 && RNLErrorNone != ReadTrainedData<float>(hashtablePath, QStrPath, QCohPath, 2 /*second pass*/, gFilterBuckets2, &gFilterBuffer2))
         return RNLErrorBadParameter;
+    }
 
     // create guassian kernel if patchSize is not default
     if (gPatchSize != defaultPatchSize)
     {
-        float *kernel = new float[gPatchSize];
-        createGaussianKernel<float>(gPatchSize, sigma, kernel);
-        gPGaussian = new float[patchAreaSize * 2]; // 2 x n^2 array
+        float *kernel;
+#ifdef __AVX512FP16__
+        if (gAsmType == AVX512_FP16) {
+            kernel = new float[gPatchSize/2];
+            createGaussianKernel<_Float16>(gPatchSize, sigma, (_Float16*)kernel);
+            gPGaussian = new float[patchAreaSize]; // 2 x n^2 array
+        } else
+#endif
+        {
+            kernel = new float[gPatchSize];
+            createGaussianKernel<float>(gPatchSize, sigma, kernel);
+            gPGaussian = new float[patchAreaSize * 2]; // 2 x n^2 array
+        }
         // compute kernel * kernel.t() ==> n x n
         for (int rowkernel = 0; rowkernel < gPatchSize; rowkernel++)
         {
             for (int colkernel = 0; colkernel < gPatchSize; colkernel++)
             {
-                gPGaussian[rowkernel * gPatchSize + colkernel] = kernel[rowkernel] * kernel[colkernel];
+#ifdef __AVX512FP16__
+                if (gAsmType == AVX512_FP16) {
+                    ((_Float16*)gPGaussian)[rowkernel * gPatchSize + colkernel] = ((_Float16*)kernel)[rowkernel] * ((_Float16*)kernel)[colkernel];
+                } else
+#endif
+                {
+                    gPGaussian[rowkernel * gPatchSize + colkernel] = kernel[rowkernel] * kernel[colkernel];
+                }
             }
         }
         // append
-        memcpy(gPGaussian + patchAreaSize, gPGaussian, patchAreaSize * sizeof(float));
+#ifdef __AVX512FP16__
+        if (gAsmType == AVX512_FP16) {
+            memcpy((_Float16*)gPGaussian + patchAreaSize, (_Float16*)gPGaussian, patchAreaSize * sizeof(_Float16));
+        } else
+#endif
+        {
+            memcpy(gPGaussian + patchAreaSize, gPGaussian, patchAreaSize * sizeof(float));
+        }
         delete[] kernel;
     }
 
@@ -1600,8 +1738,13 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
                 gIppCtx.segZones[i][threadIdx].inYUpscaled = new Ipp8u[segHeight * cols];
             else
                 gIppCtx.segZones[i][threadIdx].inYUpscaled = new Ipp8u[segHeight * cols * BYTES_16BITS];
-            gIppCtx.segZones[i][threadIdx].inYUpscaled32f = new float[segHeight * cols];
-            gIppCtx.segZones[i][threadIdx].raisr32f = new float[segHeight * cols];
+            if (gAsmType == AVX512_FP16) {
+                gIppCtx.segZones[i][threadIdx].inYUpscaled32f = new float[segHeight * cols / 2];
+                gIppCtx.segZones[i][threadIdx].raisr32f = new float[segHeight * cols / 2];
+            } else {
+                gIppCtx.segZones[i][threadIdx].inYUpscaled32f = new float[segHeight * cols];
+                gIppCtx.segZones[i][threadIdx].raisr32f = new float[segHeight * cols];
+            }
 
             // Filter initialization for Y channel segment
 
@@ -1635,6 +1778,17 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
     return RNLErrorNone;
 }
 
+#define SAFE_DELETE(x) {  \
+       if (x)            \
+           delete x;     \
+        x = NULL;         \
+}
+#define SAFE_ARR_DELETE(x) { \
+       if (x != NULL)       \
+           delete[] x;      \
+        x = NULL;            \
+}
+
 RNLERRORTYPE RNLDeinit()
 {
 #ifdef ENABLE_RAISR_OPENCL
@@ -1656,27 +1810,42 @@ RNLERRORTYPE RNLDeinit()
 
         for (int i = 0; i < gPasses; i++)
         {
-            delete[] gIppCtx.segZones[i][threadIdx].inYUpscaled;
-            delete[] gIppCtx.segZones[i][threadIdx].inYUpscaled32f;
-            delete[] gIppCtx.segZones[i][threadIdx].raisr32f;
+            SAFE_ARR_DELETE(gIppCtx.segZones[i][threadIdx].inYUpscaled);
+            SAFE_ARR_DELETE(gIppCtx.segZones[i][threadIdx].inYUpscaled32f);
+            SAFE_ARR_DELETE(gIppCtx.segZones[i][threadIdx].raisr32f);
         }
     }
-    delete gPool;
-    delete[] gIppCtx.segZones[0];
+    SAFE_DELETE(gPool);
+    SAFE_ARR_DELETE(gIppCtx.segZones[0]);
 
-    delete[] gIppCtx.specY;
-    delete[] gIppCtx.pbufferY;
+    SAFE_ARR_DELETE(gIppCtx.specY);
+    SAFE_ARR_DELETE(gIppCtx.pbufferY);
     ippsFree(gIppCtx.specUV);
     ippsFree(gIppCtx.pbufferUV);
 
     if (gPasses == 2)
     {
-        delete[] gIppCtx.segZones[1];
-        delete[] gFilterBuffer2;
-        delete[] gIntermediateY->pData;
-        delete gIntermediateY;
+        SAFE_ARR_DELETE(gIppCtx.segZones[1]);
+#ifdef __AVX512FP16__
+        if (gAsmType == AVX512_FP16) {
+            SAFE_ARR_DELETE(gFilterBuffer2_fp16);
+        } else
+#endif
+        {
+        SAFE_ARR_DELETE(gFilterBuffer2);
+        }
+        SAFE_ARR_DELETE(gIntermediateY->pData);
+        SAFE_DELETE(gIntermediateY);
     }
-    delete[] gFilterBuffer;
-    delete[] gPGaussian;
+#ifdef __AVX512FP16__
+        if (gAsmType == AVX512_FP16) {
+            SAFE_ARR_DELETE(gFilterBuffer_fp16);
+        } else
+#endif
+        {
+            SAFE_ARR_DELETE(gFilterBuffer);
+        }
+    SAFE_ARR_DELETE(gPGaussian);
+
     return RNLErrorNone;
 }

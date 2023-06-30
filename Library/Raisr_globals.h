@@ -167,6 +167,15 @@ std::vector<std::vector<float *>> gFilterBuckets2;
 // contiguous memory to hold all filters
 float *gFilterBuffer;
 float *gFilterBuffer2;
+
+// used for FP16 implementation
+#ifdef __AVX512FP16__
+std::vector<std::vector<_Float16 *>> gFilterBuckets_fp16;
+std::vector<std::vector<_Float16 *>> gFilterBuckets2_fp16;
+_Float16 *gFilterBuffer_fp16;
+_Float16 *gFilterBuffer2_fp16;
+#endif
+
 VideoDataType *gIntermediateY; // Buffer to hold intermediate result for two pass
 volatile int threadStatus[120];
 

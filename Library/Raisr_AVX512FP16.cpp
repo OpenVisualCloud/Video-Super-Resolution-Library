@@ -182,3 +182,119 @@ _Float16 DotProdPatch_AVX512FP16_16f(const _Float16 *buf, const _Float16 *filter
     return sumitup_AVX512FP16_16f(sum_ph);
 }
 
+inline __m512i HAMMING_DISTANCE (__m512i hammDist, __m512h neigh_LR, __m512h center_LR, __m512h neigh_HR, __m512h center_HR)
+{
+
+    __mmask32 maskLR =  _mm512_cmp_ph_mask(neigh_LR,center_LR, _CMP_LT_OQ);
+    __mmask32 maskHR =  _mm512_cmp_ph_mask(neigh_HR,center_HR, _CMP_LT_OQ);
+    __m512i one_epi16 = _mm512_set1_epi16(1);
+    __m512i zero_epi16 = _mm512_set1_epi16(0);
+
+    return _mm512_add_epi16( hammDist,
+                               _mm512_abs_epi16(_mm512_sub_epi16(
+                                               _mm512_mask_blend_epi16(maskLR, zero_epi16, one_epi16),
+                                               _mm512_mask_blend_epi16(maskHR, zero_epi16, one_epi16))));
+}
+
+void CTCountOfBitsChangedSegment_AVX512FP16_16f(_Float16 *LRImage, _Float16 *HRImage, const int rows, const int startRow, const std::pair<int, int> blendingZone, unsigned char *outImage, const int cols, const int outImageCols)
+{
+    int rowStartOffset = blendingZone.first - startRow;
+    int rowEndOffset = blendingZone.second - startRow;
+
+    const __m512h one_ph = _mm512_set1_ph(1.0);
+
+    for (auto r = rowStartOffset; r < rowEndOffset; r++)
+    {
+        const int c_limit = (cols - CTmargin);
+        int c_limit_avx = c_limit - (c_limit%32)+1;
+
+        for (auto c = CTmargin; c < c_limit_avx; c+=32)
+        {
+            __m512i hammingDistance_epi16 = _mm512_setzero_si512();
+
+            __m512h center_LR_ph = _mm512_loadu_ph( &LRImage[(r) * cols + c]);
+            __m512h n1_LR_ph = _mm512_loadu_ph( &LRImage[(r-1) * cols + (c-1)]);
+            __m512h n2_LR_ph = _mm512_loadu_ph( &LRImage[(r-1) * cols + (c)]);
+            __m512h n3_LR_ph = _mm512_loadu_ph( &LRImage[(r-1) * cols + (c+1)]);
+            __m512h n4_LR_ph = _mm512_loadu_ph( &LRImage[(r) * cols + (c-1)]);
+            __m512h n5_LR_ph = _mm512_loadu_ph( &LRImage[(r) * cols + (c+1)]);
+            __m512h n6_LR_ph = _mm512_loadu_ph( &LRImage[(r+1) * cols + (c-1)]);
+            __m512h n7_LR_ph = _mm512_loadu_ph( &LRImage[(r+1) * cols + (c)]);
+            __m512h n8_LR_ph = _mm512_loadu_ph( &LRImage[(r+1) * cols + (c+1)]);
+
+            __m512h center_HR_ph = _mm512_loadu_ph( &HRImage[(r) * cols + c]);
+            __m512h n1_HR_ph = _mm512_loadu_ph( &HRImage[(r-1) * cols + (c-1)]);
+            __m512h n2_HR_ph = _mm512_loadu_ph( &HRImage[(r-1) * cols + (c)]);
+            __m512h n3_HR_ph = _mm512_loadu_ph( &HRImage[(r-1) * cols + (c+1)]);
+            __m512h n4_HR_ph = _mm512_loadu_ph( &HRImage[(r) * cols + (c-1)]);
+            __m512h n5_HR_ph = _mm512_loadu_ph( &HRImage[(r) * cols + (c+1)]);
+            __m512h n6_HR_ph = _mm512_loadu_ph( &HRImage[(r+1) * cols + (c-1)]);
+            __m512h n7_HR_ph = _mm512_loadu_ph( &HRImage[(r+1) * cols + (c)]);
+            __m512h n8_HR_ph = _mm512_loadu_ph( &HRImage[(r+1) * cols + (c+1)]);
+
+            hammingDistance_epi16 = HAMMING_DISTANCE(hammingDistance_epi16, n1_LR_ph, center_LR_ph, n1_HR_ph, center_HR_ph);
+            hammingDistance_epi16 = HAMMING_DISTANCE(hammingDistance_epi16, n2_LR_ph, center_LR_ph, n2_HR_ph, center_HR_ph);
+            hammingDistance_epi16 = HAMMING_DISTANCE(hammingDistance_epi16, n3_LR_ph, center_LR_ph, n3_HR_ph, center_HR_ph);
+            hammingDistance_epi16 = HAMMING_DISTANCE(hammingDistance_epi16, n4_LR_ph, center_LR_ph, n4_HR_ph, center_HR_ph);
+            hammingDistance_epi16 = HAMMING_DISTANCE(hammingDistance_epi16, n5_LR_ph, center_LR_ph, n5_HR_ph, center_HR_ph);
+            hammingDistance_epi16 = HAMMING_DISTANCE(hammingDistance_epi16, n6_LR_ph, center_LR_ph, n6_HR_ph, center_HR_ph);
+            hammingDistance_epi16 = HAMMING_DISTANCE(hammingDistance_epi16, n7_LR_ph, center_LR_ph, n7_HR_ph, center_HR_ph);
+            hammingDistance_epi16 = HAMMING_DISTANCE(hammingDistance_epi16, n8_LR_ph, center_LR_ph, n8_HR_ph, center_HR_ph);
+
+             __m512h weight_ph = _mm512_div_ph( _mm512_cvtepi16_ph(hammingDistance_epi16), _mm512_set1_ph((_Float16) CTnumberofPixel) );
+            __m512h weight2_ph = _mm512_sub_ph(one_ph, weight_ph);
+
+            __m512h val_ph = _mm512_add_ph( _mm512_mul_ph( weight_ph, center_LR_ph),
+                                            _mm512_mul_ph(weight2_ph, center_HR_ph));
+            val_ph = _mm512_add_ph( val_ph, _mm512_set1_ph(0.5));
+
+#ifndef USE_ATAN2_APPROX
+            val_ph = _mm512_floor_ph(val_ph); // svml instruction. perhaps rounding would be better?
+#endif
+
+            // convert (float)val to (epu8/16)val
+            __m512i val_epu16 = _mm512_cvtph_epu16(val_ph), val_epu8, perm_epu;
+            if (gBitDepth == 8) {
+                val_epu16 = _mm512_max_epu16(_mm512_min_epu16( val_epu16, _mm512_set1_epi16(gMax8bit)), _mm512_set1_epi16(gMin8bit));
+                val_epu8 = _mm512_packus_epi16(val_epu16, val_epu16);
+                perm_epu = _mm512_permutexvar_epi64(_mm512_setr_epi64(0,2,4,6,0,2,4,6), val_epu8);
+                _mm256_storeu_si256((__m256i *) &outImage[(startRow + r) * outImageCols / sizeof(unsigned char) + c], _mm512_extracti64x4_epi64(perm_epu, 0));
+            }
+            else {
+                val_epu16 = _mm512_max_epu16(_mm512_min_epu16( val_epu16, _mm512_set1_epi16(gMax16bit)), _mm512_set1_epi16(gMin16bit));
+                unsigned short *out = (unsigned short *)outImage;
+                _mm512_storeu_si512((__m512i *) &out[(startRow + r) * outImageCols / sizeof(unsigned short) + c], val_epu16 );
+            }
+        }
+
+        for (auto c = c_limit_avx; c < c_limit; c++) // handle edge, too small for SIMD
+        {
+            int hammingDistance = 0;
+
+            // Census transform
+            for (int i = -CTmargin; i <= CTmargin; i++)
+            {
+                for (int j = -CTmargin; j <= CTmargin; j++)
+                {
+                    if (unlikely(i == 0 && j == 0))
+                        continue;
+                    hammingDistance += std::abs((LRImage[(r + i) * cols + (c + j)] < LRImage[r * cols + c] ? 1 : 0) - (HRImage[(r + i) * cols + (c + j)] < HRImage[r * cols + c] ? 1 : 0));
+                }
+            }
+            float weight = (float)hammingDistance / (float)CTnumberofPixel;
+            float val = weight * LRImage[r * cols + c] + (1 - weight) * HRImage[r * cols + c];
+
+            val += 0.5; // to round the value
+
+            //convert 32f to 8bit/10bit
+            if (gBitDepth == 8) {
+                outImage[(startRow + r) * outImageCols + c] = (unsigned char)(val < gMin8bit ? gMin8bit : (val > gMax8bit ? gMax8bit : val));
+            }
+            else {
+                unsigned short *out = (unsigned short *)outImage;
+                out[(startRow + r) * outImageCols / sizeof(unsigned short) + c] = (unsigned short)(val < gMin16bit ? gMin16bit : (val > gMax16bit ? gMax16bit : val));
+            }
+        }
+    }
+}
+
