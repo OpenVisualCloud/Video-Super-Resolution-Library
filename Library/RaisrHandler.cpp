@@ -10,7 +10,7 @@
 
 RNLERRORTYPE RNLHandler_Init(
     const char *modelPath,
-    unsigned int ratio,
+    float ratio,
     unsigned int bitDepth,
     RangeType    rangeType,
     unsigned int threadCount,

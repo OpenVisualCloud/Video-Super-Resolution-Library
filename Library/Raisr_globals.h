@@ -34,7 +34,8 @@ const int CTwindowSize = 3;
 const int CTnumberofPixel = CTwindowSize * CTwindowSize - 1;
 const int CTmargin = CTwindowSize >> 1;
 const int gHashingExpand = CTmargin + 1; // Segment is again expanded by CTmargin so that all the rows in the segment can be processed by CTCountOfBitsChanged(). "+1" is to make sure the resize zone is even.
-static unsigned int gRatio;
+static float gRatio;
+static bool gUsePixelType = true;
 static ASMType gAsmType;
 static MachineVendorType gMachineVendorType;
 static unsigned int gBitDepth;

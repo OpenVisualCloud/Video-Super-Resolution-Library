@@ -256,7 +256,7 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
         return RNLErrorBadParameter;
     }
 
-    if (pixelTypes != gRatio * gRatio)
+    if (gUsePixelType && pixelTypes != gRatio * gRatio)
     {
         std::cout << "[RAISR ERROR] HashTable format is not compatible in number of pixel types!\n";
         return RNLErrorBadParameter;
@@ -918,13 +918,13 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         {
             if (gBitDepth == 8)
             {
-                Ipp8u *pSrc = inY->pData + inY->step * (startRow / gRatio);
+                Ipp8u *pSrc = inY->pData + inY->step * (int)(startRow / gRatio);
                 status = IPPResize(8)(pSrc, inY->step, pDst, step, {0, 0}, {(int)outY->width, segRows},
                                       ippBorderRepl, 0, gIppCtx.specY[threadIdx], gIppCtx.pbufferY[threadIdx]);
             }
             else
             {
-                Ipp16u *pSrc = (Ipp16u *)(inY->pData + inY->step * (startRow / gRatio));
+                Ipp16u *pSrc = (Ipp16u *)(inY->pData + inY->step * (int)(startRow / gRatio));
                 status = IPPResize(16)((Ipp16u *)pSrc, inY->step, (Ipp16u *)pDst, step, {0, 0}, {(int)outY->width, segRows},
                                        ippBorderRepl, 0, gIppCtx.specY[threadIdx], gIppCtx.pbufferY[threadIdx]);
             }
@@ -995,7 +995,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         endRow = endRow > (rows - gLoopMargin) ? (rows - gLoopMargin) : endRow;
 
         float GTWG[unrollSizePatchBased][4];
-        int pixelType[unrollSizePatchBased];
+        int pixelType[unrollSizePatchBased] = {0, 0, 0, 0, 0, 0, 0, 0};
         int hashValue[unrollSizePatchBased];
         const float *fbase[unrollSizePatchBased];
         float pixbuf[unrollSizePatchBased][128] __attribute__((aligned(64)));
@@ -1012,9 +1012,12 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
             for (int c = gLoopMargin; c + unrollSizePatchBased <= cols - gLoopMargin; c += unrollSizePatchBased)
             {
 #pragma unroll(unrollSizePatchBased)
-                for (pix = 0; pix < unrollSizePatchBased; pix++)
+                if (gUsePixelType)
                 {
-                    pixelType[pix] = ((r - gPatchMargin) % gRatio) * gRatio + ((c + pix - gPatchMargin) % gRatio);
+                    for (pix = 0; pix < unrollSizePatchBased; pix++)
+                    {
+                        pixelType[pix] = ((r - gPatchMargin) % (int)gRatio) * (int)gRatio + ((c + pix - gPatchMargin) % (int)gRatio);
+                    }
                 }
 
 #pragma unroll(unrollSizePatchBased / 2)
@@ -1244,7 +1247,7 @@ RNLERRORTYPE RNLSetOpenCLContext(void *context, void *deviceID, int platformInde
 }
 
 RNLERRORTYPE RNLInit(std::string &modelPath,
-                     unsigned int ratio,
+                     float ratio,
                      unsigned int bitDepth,
                      RangeType    rangeType,
                      unsigned int threadCount,
@@ -1311,6 +1314,10 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     }
     gRatio = ratio;
     gAsmType = asmType;
+    if (gRatio != 2.0)
+    {
+        gUsePixelType = false;
+    }
 #ifdef __AVX512F__
     if ( gAsmType != AVX512 && gAsmType != AVX2 &&
          gAsmType != OpenCL && gAsmType != OpenCLExternal) gAsmType = AVX512;
@@ -1545,8 +1552,20 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
             gIppCtx.segZones[i][threadIdx].raisrEndRow = (endRow + expand) > rows ? rows : (endRow + expand);
             // set segment zone for cheap resize
             expand += gResizeExpand;
-            gIppCtx.segZones[i][threadIdx].scaleStartRow = (startRow - expand) < 0 ? 0 : (startRow - expand);
-            gIppCtx.segZones[i][threadIdx].scaleEndRow = (endRow + expand) > rows ? rows : (endRow + expand);
+            int startR = (startRow - expand) < 0 ? 0 : (startRow - expand);
+            int endR = (endRow + expand) > rows ? rows : (endRow + expand);
+
+            if (startRow == 0)
+                while((endR / gRatio) - (int)(endR / gRatio) && endR < rows) endR++;
+            else if (endRow == rows)
+                while((startR / gRatio) - (int)(startR / gRatio) && startR > 0) startR--;
+            else 
+            {
+                while((startR / gRatio) - (int)(startR / gRatio) && startR > 0) startR--;
+                while((endR / gRatio) - (int)(endR / gRatio) && endR < rows) endR++;
+            }
+            gIppCtx.segZones[i][threadIdx].scaleStartRow = startR;
+            gIppCtx.segZones[i][threadIdx].scaleEndRow = endR;
             // std::cout << threadIdx << ", blendingStartRow: " << gIppCtx.segZones[i][threadIdx].blendingStartRow << ", blendingEndRow: " << gIppCtx.segZones[i][threadIdx].blendingEndRow
             //<< ", raisrStartRow: " << gIppCtx.segZones[i][threadIdx].raisrStartRow << ", raisrEndRow: " << gIppCtx.segZones[i][threadIdx].raisrEndRow
             //<< ", scaleStartRow: " << gIppCtx.segZones[i][threadIdx].scaleStartRow << ", scaleEndRow: " << gIppCtx.segZones[i][threadIdx].scaleEndRow << std::endl;

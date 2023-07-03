@@ -12,7 +12,7 @@
 #include "RaisrVersion.h"
 
 RNLERRORTYPE RNLInit(std::string &modelPath,
-                     unsigned int ratio,
+                     float ratio,
                      unsigned int bitDepth = 8,
                      RangeType rangeType = VideoRange,
                      unsigned int threadCount = 20,
