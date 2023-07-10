@@ -44,6 +44,7 @@ Evaluating the quality of the RAISR can be done in different ways.
 ./ffmpeg -y -i /input_files/input.mp4 -vf scale=iw/2:ih/2,raisr=threadcount=20 -pix_fmt yuv420p /output_files/out.yuv
 ```
 At this point the source content is the same resolution as the output and the two can be compared to understand how well the super resolution is working.  RAISR can be compared against existing DL super resolution algorithms as well.  It is recommended to enable second pass in Intel Library for VSR to produce sharper images.  Please see the Advanced Usage section for guidance on enabling second pass as a feature.
+
 **OpenCL acceleration**
 ```
 ./ffmpeg -y -i /input_files/input.mp4 -vf raisr=asm=opencl -pix_fmt yuv420p /output_files/out.yuv
