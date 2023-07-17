@@ -114,6 +114,7 @@ static bool machine_supports_feature(MachineVendorType vendor, ASMType type)
     return ret;
 }
 
+#ifdef __AVX512FP16__
 void inline Convert_8u16f_8bit(Ipp8u *input, _Float16 *output, int cols, int rows) {
     for (int j = 0; j < rows; j++) {
         int c_limit_avx = cols - (cols%32);
@@ -148,7 +149,7 @@ void inline Convert_8u16f_10bit(Ipp16u *input, _Float16 *output, int cols, int r
         }
     }
 }
-
+#endif
 
 template <typename DT>
 static void createGaussianKernel(int n, double sigma, DT *result)
@@ -1132,7 +1133,9 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                     if (likely(c + pix < cols - gLoopMargin))
                     {
                         float curPix;
+#ifdef __AVX512FP16__
                         _Float16 curPix_fp16;
+#endif
 
                         if (gAsmType == AVX2)
                             curPix  = DotProdPatch_AVX256_32f(pixbuf[pix], fbase[pix]);
