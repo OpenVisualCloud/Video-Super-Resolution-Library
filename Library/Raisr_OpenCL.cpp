@@ -145,7 +145,8 @@ static RNLERRORTYPE buildProgram(RaisrOpenCLContext *raisrOpenCLContext,
          err = RNLErrorInsufficientResources;
          goto fail;
     }
-    sprintf(programBuffer, filterShader, raisrOpenCLContext->gRatio,
+    sprintf(programBuffer, filterShader, (int)raisrOpenCLContext->gRatio, raisrOpenCLContext->gRatio,
+            raisrOpenCLContext->gUsePixelType,
             raisrOpenCLContext->gPatchSize, raisrOpenCLContext->gPatchSize,
             raisrOpenCLContext->gQuantizationAngle, raisrOpenCLContext->gQuantizationStrength,
             raisrOpenCLContext->gQuantizationCoherence, colorRangeMin, colorRangeMax,
@@ -317,8 +318,10 @@ RNLERRORTYPE RaisrOpenCLInit(RaisrOpenCLContext *raisrOpenCLContext)
                          "OpenCL error code: " << err << std::endl;
             return RNLErrorUndefined;
         }
+        int pixelTypes = raisrOpenCLContext->gUsePixelType ?
+                raisrOpenCLContext->gRatio * raisrOpenCLContext->gRatio : 1;
         filterSetSize = raisrOpenCLContext->gQuantizationAngle * raisrOpenCLContext->gQuantizationStrength * raisrOpenCLContext->gQuantizationCoherence *
-                          raisrOpenCLContext->gRatio * raisrOpenCLContext->gRatio * raisrOpenCLContext->gPatchSize * raisrOpenCLContext->gPatchSize;
+                          pixelTypes * raisrOpenCLContext->gPatchSize * raisrOpenCLContext->gPatchSize;
         raisrModel->filterBuckets = clCreateBuffer(raisrOpenCLContext->context,
             CL_MEM_READ_ONLY, filterSetSize*sizeof(float), NULL, &err);
         if (err != CL_SUCCESS) {
@@ -341,7 +344,6 @@ RNLERRORTYPE RaisrOpenCLInit(RaisrOpenCLContext *raisrOpenCLContext)
         int hashkeySize = raisrOpenCLContext->gQuantizationAngle *
                           raisrOpenCLContext->gQuantizationStrength *
                           raisrOpenCLContext->gQuantizationCoherence;
-        int pixelTypes = raisrOpenCLContext->gRatio * raisrOpenCLContext->gRatio;
         for (int i = 0; i < hashkeySize * pixelTypes; i++) {
             err = clEnqueueWriteBuffer(raisrModel->queue, raisrModel->filterBuckets, CL_TRUE, i * rows * sizeof(float),
                                        rows * sizeof(float), AFilters + i * alignedRows,

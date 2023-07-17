@@ -1457,6 +1457,7 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     gOpenCLContext.gMax8bit = gMax8bit;
     gOpenCLContext.gMin16bit = gMin16bit;
     gOpenCLContext.gMax16bit = gMax16bit;
+    gOpenCLContext.gUsePixelType = (int)gUsePixelType;
     if (gAsmType == OpenCL || gAsmType == OpenCLExternal)
         if ((err = RaisrOpenCLInit(&gOpenCLContext)) != RNLErrorNone) {
             std::cout << "[RAISR OPENCL ERROR] Init Raisr OpenCL error." << std::endl;

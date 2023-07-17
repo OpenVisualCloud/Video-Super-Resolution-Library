@@ -20,7 +20,7 @@ typedef struct RaisrOpenCLContext {
     cl_device_id deviceID;
     int widthMax;
     int heightMax;
-    unsigned int gRatio;
+    float gRatio;
     ASMType gAsmType;
     int platformIndex;
     int deviceIndex;
@@ -41,6 +41,7 @@ typedef struct RaisrOpenCLContext {
     unsigned char gMax8bit;
     unsigned short gMin16bit;
     unsigned short gMax16bit;
+    int gUsePixelType;
 } RaisrOpenCLContext;
 
 RNLERRORTYPE RaisrOpenCLInit(RaisrOpenCLContext *raisrOpenCLContext);

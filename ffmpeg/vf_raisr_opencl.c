@@ -26,15 +26,15 @@
 #include "opencl.h"
 #include "libavutil/pixdesc.h"
 
-#define MIN_RATIO 2
-#define MAX_RATIO 2
+#define MIN_RATIO 1
+#define MAX_RATIO 4
 #define DEFAULT_RATIO 2
 
 typedef struct RaisrOpenCLContext {
     OpenCLFilterContext ocf;
 
     int initialised;
-    int ratio;
+    float ratio;
     int bits;
     char *filterfolder;
     BlendingMode blending;
@@ -213,7 +213,7 @@ static av_cold void raisr_opencl_uninit(AVFilterContext *avctx)
 #define FLAGS (AV_OPT_FLAG_FILTERING_PARAM | AV_OPT_FLAG_VIDEO_PARAM)
 static const AVOption raisr_opencl_options[] = {
     {"ratio", "ratio (currently only ratio of 2 is supported)", OFFSET(ratio),
-        AV_OPT_TYPE_INT, {.i64 = DEFAULT_RATIO}, MIN_RATIO, MAX_RATIO, FLAGS},
+        AV_OPT_TYPE_FLOAT, {.dbl = DEFAULT_RATIO}, MIN_RATIO, MAX_RATIO, FLAGS},
     {"bits", "bit depth", OFFSET(bits), AV_OPT_TYPE_INT, {.i64 = 8}, 8, 10, FLAGS},
     {"range", "input color range", OFFSET(range), AV_OPT_TYPE_INT, {.i64 = VideoRange}, VideoRange, FullRange, FLAGS, "range"},
         { "video", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = VideoRange  },   INT_MIN, INT_MAX, FLAGS, "range" },
