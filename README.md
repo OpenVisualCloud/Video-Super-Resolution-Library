@@ -1,5 +1,5 @@
 # Intel® Library for Video Super Resolution (Intel® Library for VSR) README
-This project aims to provide a CPU based implementation of the RAISR (Rapid and Accurate Image Super Resolution) algorithm (https://arxiv.org/pdf/1606.01299.pdf) optimized to achieve beyond real-time performance for 2x upscaling on Intel® Xeon® platforms.  It can take a lower resolution image and upscale 2x (e.g 540p to 1080p) and provides better quality results than standard (bicubic) algorithms and a good performance vs quality trade-off as compared to DL-based algorithms like EDSR.  The Intel Library for VSR is provided as an FFmpeg plugin inside of a Docker container to help ease testing and deployment burdens.  This project is developed using C++ and takes advantage of Intel® Advanced Vector Extension 512 (Intel® AVX-512).
+This project aims to provide a CPU based implementation of the RAISR (Rapid and Accurate Image Super Resolution) algorithm (https://arxiv.org/pdf/1606.01299.pdf) optimized to achieve beyond real-time performance for 2x upscaling on Intel® Xeon® platforms.  It can take a lower resolution image and upscale 2x (e.g 540p to 1080p) and provides better quality results than standard (bicubic) algorithms and a good performance vs quality trade-off as compared to DL-based algorithms like EDSR.  The Intel Library for VSR is provided as an FFmpeg plugin inside of a Docker container to help ease testing and deployment burdens.  This project is developed using C++ and takes advantage of Intel® Advanced Vector Extension 512 (Intel® AVX-512) where available and newly added Intel® AVX-512FP16 support on Intel® Xeon® 4th Generation (Sapphire Rapids).
 
 ## How to build
 Please see "How to build.md" to build via scripts or manually.
@@ -74,7 +74,7 @@ ffmpeg -init_hw_device vaapi=va -init_hw_device opencl=ocl@va -hwaccel vaapi -hw
       passes            <int>        ..FV....... passes to run (1: one pass, 2: two pass) (from 1 to 2) (default 1)
       mode              <int>        ..FV....... mode for two pass (1: upscale in 1st pass, 2: upscale in 2nd
                                                  pass) (from 1 to 2) (default 1)
-      asm               <string>     ..FV....... x86 asm type: (avx512 or avx2) (default "avx512")
+      asm               <string>     ..FV....... x86 asm type: (avx512fp16, avx512 or avx2) (default "avx512fp16")
 
 ## Advanced Usage ( through Exposed Parameters )
 The FFmpeg plugin for Intel Library for VSR exposes a number of parameters that can be changed for advanced customization
@@ -129,9 +129,9 @@ Dictates which pass the upscaling should occur in.  Some filters have the best r
 ./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:mode=2" -pix_fmt yuv420p /output_files/out.yuv
 ```
 ### asm
-Allowable values ("avx512","avx2","opencl"), default("avx512")
+Allowable values ("avx512","avx2","opencl"), default("avx512fp16")
 
-The VSR Library requires an x86 processor which has the Advanced Vector Extensions 2 (AVX2) available.  AVX2 was first introduced into the Intel Xeon roadmap with Haswell in 2015.  Performance can be further increased if the newer AVX-512 Foundation and Vector Length Extensions are available.  AVX512 was introduced into the Xeon Scalable Processors (Skylake gen) in 2017. The VSR Library will always check for AVX512 first, and fallback to AVX2 in its absense.  However if the use case requires it, this asm parameter allows the default behavior to be changed. User can also choose opencl if the opencl is supported in their system.
+The VSR Library requires an x86 processor which has the Advanced Vector Extensions 2 (AVX2) available.  AVX2 was first introduced into the Intel Xeon roadmap with Haswell in 2015.  Performance can be further increased if the newer AVX-512 Foundation and Vector Length Extensions are available.  AVX512 was introduced into the Xeon Scalable Processors (Skylake gen) in 2017.  Performance improves again with the introduction of AVX-512FP16, which uses _Float16 instead of float(32bit) with minimal precision and visual quality loss.  AVX-512FP16 was introduced into the 4th gen Xeon (Sapphire Rappids) in 2022.  The VSR Library will always check for the highest available ISA first, then fallback according to what is available (AVX-512FP16/AVX512/AVX2).  However if the use case requires it, this asm parameter allows the default behavior to be changed. User can also choose opencl if the opencl is supported in their system.
 
 # How to Contribute
 We welcome community contributions to the Open Visual Cloud repositories. If you have any idea how to improve the project, please share it with us.
