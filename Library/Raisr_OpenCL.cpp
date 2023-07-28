@@ -44,27 +44,14 @@ typedef struct RaisrContextOpenCLPriv {
 
 static void initGaussianKernel(float *kernel, float sigma, int kernelSize)
 {
-    const int SMALL_GAUSSIAN_SIZE = 7;
-    static const float smallGaussianTab[][SMALL_GAUSSIAN_SIZE] =
-    {
-        {1.f},
-        {0.25f, 0.5f, 0.25f},
-        {0.0625f, 0.25f, 0.375f, 0.25f, 0.0625f},
-        {0.03125f, 0.109375f, 0.21875f, 0.28125f, 0.21875f, 0.109375f, 0.03125f}
-    };
-
-    const float* fixedKernel = kernelSize % 2 == 1 && kernelSize <= SMALL_GAUSSIAN_SIZE && sigma <= 0 ?
-        smallGaussianTab[kernelSize>>1] : 0;
-
-    double sigmaX = sigma > 0 ? sigma : ((kernelSize-1)*0.5 - 1)*0.3 + 0.8;
-    double scale2X = -0.5/(sigmaX*sigmaX);
+    double scale2X = -0.5/(sigma*sigma);
     double sum = 0;
 
     int i;
     for( i = 0; i < kernelSize; i++ )
     {
         double x = i - (kernelSize-1)*0.5;
-        double t = fixedKernel ? (double)fixedKernel[i] : exp(scale2X*x*x);
+        double t = exp(scale2X*x*x);
         kernel[i] = (float)t;
         sum += kernel[i];
     }
