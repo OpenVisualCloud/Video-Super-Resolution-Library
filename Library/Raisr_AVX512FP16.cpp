@@ -82,14 +82,14 @@ inline _Float16 sumitup_AVX512FP16_16f(__m512h acc)
 
 inline __m512h shiftL_AVX512FP16(__m512h r)
 {
-    return _mm512_permutexvar_ph(_mm512_set_epi16(  0, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
-                                                    16, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17 ), r);
+    return _mm512_permutexvar_ph(_mm512_set_epi16(  16, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17,
+                                                    0, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 ), r);
 }
 
 inline __m512h shiftR_AVX512FP16(__m512h r)
 {
-    return _mm512_permutexvar_ph(_mm512_set_epi16(  14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15,
-                                                    30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 31), r);
+    return _mm512_permutexvar_ph(_mm512_set_epi16(  30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17,16,31,
+                                                    14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15), r);
 }
 
 inline __m512h GetGx_AVX512FP16(__m512h r1, __m512h r3)
@@ -107,7 +107,7 @@ inline __m512h GetGTWG_AVX512FP16(__m512h acc, __m512h a, __m512h w, __m512h b)
     return _mm512_fmadd_ph(_mm512_mul_ph(a, w), b, acc);
 }
 
-void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, const int ncols, const int r, const int col, float GTWG[][4], _Float16 *buf1, _Float16 *buf2)
+void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, const int ncols, const int r, const int col, float GTWG[][4], _Float16 *buf1, _Float16 *buf2, _Float16 *buf3, _Float16 *buf4)
 {
     // offset is the starting position(top left) of the block which centered by (r, c)
     int offset = (r - gLoopMargin) * ncols + col - gLoopMargin;
@@ -120,7 +120,8 @@ void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, co
     else
         normal = NF_16;
 
-    __m512h gtwg0 = _mm512_setzero_ph(), gtwg1 = _mm512_setzero_ph(), gtwg3 = _mm512_setzero_ph();
+    __m512h gtwg0A = _mm512_setzero_ph(), gtwg1A = _mm512_setzero_ph(), gtwg3A = _mm512_setzero_ph();
+    __m512h gtwg0B = _mm512_setzero_ph(), gtwg1B = _mm512_setzero_ph(), gtwg3B = _mm512_setzero_ph();
 
     // load 2 rows
     __m512h a = _mm512_zextph256_ph512(_mm256_loadu_ph(p1));
@@ -136,34 +137,52 @@ void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, co
         p1 += ncols;
         __m512h c = _mm512_zextph256_ph512(_mm256_loadu_ph(p1));
         c = _mm512_castps_ph(_mm512_insertf32x8(_mm512_castph_ps(c), _mm256_castph_ps(_mm512_castph512_ph256(c)), 1));  // duplicate high & low to compute GTWG for 2 pixels
-        __m512h w = _mm512_loadu_ph(gGaussian2DOriginal_fp16_doubled[i]);
+        __m512h w = _mm512_loadu_ph(gGaussian2DOriginal_fp16_doubled_w1w3[i]); // pixels 1,3
 
         const __m512h gxi = GetGx_AVX512FP16(a, c);
         const __m512h gyi = GetGy_AVX512FP16(b);
 
-        gtwg0 = GetGTWG_AVX512FP16(gtwg0, gxi, w, gxi);
-        gtwg1 = GetGTWG_AVX512FP16(gtwg1, gxi, w, gyi);
-        gtwg3 = GetGTWG_AVX512FP16(gtwg3, gyi, w, gyi);
+        gtwg0A = GetGTWG_AVX512FP16(gtwg0A, gxi, w, gxi);
+        gtwg1A = GetGTWG_AVX512FP16(gtwg1A, gxi, w, gyi);
+        gtwg3A = GetGTWG_AVX512FP16(gtwg3A, gyi, w, gyi);
+
+        w = shiftR_AVX512FP16(w); // pixels 2,4
+
+        gtwg0B = GetGTWG_AVX512FP16(gtwg0B, gxi, w, gxi);
+        gtwg1B = GetGTWG_AVX512FP16(gtwg1B, gxi, w, gyi);
+        gtwg3B = GetGTWG_AVX512FP16(gtwg3B, gyi, w, gyi);
 
         _mm256_mask_storeu_epi16(buf1 + gPatchSize * i - 1, 0x0ffe,_mm256_castph_si256(_mm512_castph512_ph256(b)));
         _mm256_mask_storeu_epi16(buf2 + gPatchSize * i - 2, 0x1ffc,_mm256_castph_si256(_mm512_castph512_ph256(b)));
+        _mm256_mask_storeu_epi16(buf3 + gPatchSize * i - 3, 0x3ff8,_mm256_castph_si256(_mm512_castph512_ph256(b)));
+        _mm256_mask_storeu_epi16(buf4 + gPatchSize * i - 4, 0x7ff0,_mm256_castph_si256(_mm512_castph512_ph256(b)));
 
         a = b;
         b = c;
     }
-
-    GTWG[0][0] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg0)) * normal;
-    GTWG[0][1] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg1)) * normal;
-    GTWG[0][3] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg3)) * normal;
+    GTWG[0][0] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg0A)) * normal;
+    GTWG[0][1] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg1A)) * normal;
+    GTWG[0][3] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg3A)) * normal;
     GTWG[0][2] = GTWG[0][1];
 
-    GTWG[1][0] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg0),1))) * normal;
-    GTWG[1][1] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg1),1))) * normal;
-    GTWG[1][3] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg3),1))) * normal;
+    GTWG[2][0] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg0A),1))) * normal;
+    GTWG[2][1] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg1A),1))) * normal;
+    GTWG[2][3] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg3A),1))) * normal;
+    GTWG[2][2] = GTWG[2][1];
+
+    GTWG[1][0] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg0B)) * normal;
+    GTWG[1][1] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg1B)) * normal;
+    GTWG[1][3] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg3B)) * normal;
     GTWG[1][2] = GTWG[1][1];
+
+    GTWG[3][0] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg0B),1))) * normal;
+    GTWG[3][1] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg1B),1))) * normal;
+    GTWG[3][3] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg3B),1))) * normal;
+    GTWG[3][2] = GTWG[3][1];
 
     return;
 }
+
 
 _Float16 DotProdPatch_AVX512FP16_16f(const _Float16 *buf, const _Float16 *filter)
 {

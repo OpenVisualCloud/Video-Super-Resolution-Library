@@ -1101,7 +1101,9 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
 #endif
 #ifdef __AVX512FP16__
                     else if (gAsmType == AVX512_FP16)
-                        computeGTWG_Segment_AVX512FP16_16f((_Float16 *)pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf_fp16[2 * pix][0], &pixbuf_fp16[2 * pix + 1][0]);
+                        if (pix <= 1) {
+                            computeGTWG_Segment_AVX512FP16_16f((_Float16 *)pSeg32f, rows, cols, rOffset, c + 4 * pix, &GTWG[4 * pix], &pixbuf_fp16[4 * pix][0], &pixbuf_fp16[4 * pix + 1][0], &pixbuf_fp16[4 * pix + 2][0], &pixbuf_fp16[4 * pix + 3][0]);
+                        } else { break; }
  #endif
                     else
                     {
