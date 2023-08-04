@@ -40,10 +40,10 @@ WORKDIR /raisrfolder
 COPY ./libraisr.a /usr/local/lib/
 COPY Library/*.h /usr/local/include/raisr/
 #
-# Clone ffmpeg and checkout branch n4.4
+# Clone ffmpeg and checkout branch n6.0
 RUN git clone https://github.com/FFmpeg/FFmpeg ffmpeg
 WORKDIR /raisrfolder/ffmpeg
-RUN git checkout -b mybranch n4.4
+RUN git checkout -b mybranch n6.0
 #
 # Apply the raisr filter patch
 COPY ./ffmpeg/*.patch .

@@ -29,7 +29,7 @@ This release is packaged as a docker container and should contain everything one
 ## Package Contents
 - filters1\, filters2\, filters3\, filters4\, filters5\ - 5 folders containing filters.  Each filter can produce different results.  See README
 - license\ - license containing use, terms and limitations
-- 0001-ffmpeg-raisr-filter.patch  - patch to create raisr plugin for ffmpeg branch n4.4
+- 0001-ffmpeg-raisr-filter.patch  - patch to create raisr plugin for ffmpeg branch n6.0
 - Dockerfile – used to create a docker image
 - Library\ - contains .cpp source code files and header files outlining project’s development APIs 
 

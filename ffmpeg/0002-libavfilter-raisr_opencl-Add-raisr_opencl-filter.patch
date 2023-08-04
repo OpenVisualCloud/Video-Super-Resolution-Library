@@ -1,11 +1,9 @@
-From a59cf20b7f0208bc46ac3776111df5c147e8f116 Mon Sep 17 00:00:00 2001
-From: Wenbin Chen <wenbin.chen@intel.com>
-Date: Thu, 6 Apr 2023 13:48:23 +0800
-Subject: [PATCH] libavfilter/raisr_opencl: Add raisr_opencl filter
+From 954f1cada458477e977adfb42c354fce289a1576 Mon Sep 17 00:00:00 2001
+From: Liang Xiaoxia <xiaoxia.liang@intel.com>
+Date: Fri, 4 Aug 2023 10:56:36 +0800
+Subject: [PATCH 2/2] FFmpeg Raisr-OpenCL filter for n6.0
 
-Add raisr_opencl filter
-
-Signed-off-by: Wenbin Chen <wenbin.chen@intel.com>
+Signed-off-by: Liang Xiaoxia <xiaoxia.liang@intel.com>
 ---
  configure                | 1 +
  libavfilter/Makefile     | 1 +
@@ -13,23 +11,23 @@ Signed-off-by: Wenbin Chen <wenbin.chen@intel.com>
  3 files changed, 3 insertions(+)
 
 diff --git a/configure b/configure
-index b247d1b621..4759634d4c 100755
+index f87716611b..a3c22079a8 100755
 --- a/configure
 +++ b/configure
-@@ -3661,6 +3661,7 @@ tonemap_opencl_filter_deps="opencl const_nan"
- transpose_opencl_filter_deps="opencl"
+@@ -3754,6 +3754,7 @@ transpose_opencl_filter_deps="opencl"
  transpose_vaapi_filter_deps="vaapi VAProcPipelineCaps_rotation_flags"
+ transpose_vulkan_filter_deps="vulkan spirv_compiler"
  unsharp_opencl_filter_deps="opencl"
 +raisr_opencl_filter_deps="opencl"
  uspp_filter_deps="gpl avcodec"
  vaguedenoiser_filter_deps="gpl"
- vidstabdetect_filter_deps="libvidstab"
+ vflip_vulkan_filter_deps="vulkan spirv_compiler"
 diff --git a/libavfilter/Makefile b/libavfilter/Makefile
-index 66f93cef13..b3445c33c7 100644
+index 13126f7f48..c138e2565b 100644
 --- a/libavfilter/Makefile
 +++ b/libavfilter/Makefile
-@@ -484,6 +484,7 @@ OBJS-$(CONFIG_WEAVE_FILTER)                  += vf_weave.o
- OBJS-$(CONFIG_XBR_FILTER)                    += vf_xbr.o
+@@ -546,6 +546,7 @@ OBJS-$(CONFIG_XBR_FILTER)                    += vf_xbr.o
+ OBJS-$(CONFIG_XCORRELATE_FILTER)             += vf_convolve.o framesync.o
  OBJS-$(CONFIG_XFADE_FILTER)                  += vf_xfade.o
  OBJS-$(CONFIG_XFADE_OPENCL_FILTER)           += vf_xfade_opencl.o opencl.o opencl/xfade.o
 +OBJS-$(CONFIG_RAISR_OPENCL_FILTER)           += vf_raisr_opencl.o opencl.o
@@ -37,17 +35,17 @@ index 66f93cef13..b3445c33c7 100644
  OBJS-$(CONFIG_XSTACK_FILTER)                 += vf_stack.o framesync.o
  OBJS-$(CONFIG_YADIF_FILTER)                  += vf_yadif.o yadif_common.o
 diff --git a/libavfilter/allfilters.c b/libavfilter/allfilters.c
-index 50a90054ba..4f55bd488d 100644
+index 0dc81faaed..ef5ce4df9c 100644
 --- a/libavfilter/allfilters.c
 +++ b/libavfilter/allfilters.c
-@@ -361,6 +361,7 @@ extern AVFilter ff_vf_pullup;
- extern AVFilter ff_vf_qp;
- extern AVFilter ff_vf_raisr;
- extern AVFilter ff_vf_random;
-+extern AVFilter ff_vf_raisr_opencl;
- extern AVFilter ff_vf_readeia608;
- extern AVFilter ff_vf_readvitc;
- extern AVFilter ff_vf_realtime;
+@@ -403,6 +403,7 @@ extern const AVFilter ff_vf_pullup;
+ extern const AVFilter ff_vf_qp;
+ extern const AVFilter ff_vf_raisr;
+ extern const AVFilter ff_vf_random;
++extern const AVFilter ff_vf_raisr_opencl;
+ extern const AVFilter ff_vf_readeia608;
+ extern const AVFilter ff_vf_readvitc;
+ extern const AVFilter ff_vf_realtime;
 -- 
 2.34.1
 

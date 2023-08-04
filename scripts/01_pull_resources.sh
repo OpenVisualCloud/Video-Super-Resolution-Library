@@ -38,7 +38,7 @@ if [ ! -d "ffmpeg" ];then
 fi
 
 cd ffmpeg
-git checkout -b n4.4 n4.4
+git checkout -b n6.0 n6.0
 git am ../Video-Super-Resolution-Library/ffmpeg/0001-ffmpeg-raisr-filter.patch
 cd -
 

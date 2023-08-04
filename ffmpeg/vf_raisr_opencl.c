@@ -213,7 +213,7 @@ static av_cold void raisr_opencl_uninit(AVFilterContext *avctx)
 #define FLAGS (AV_OPT_FLAG_FILTERING_PARAM | AV_OPT_FLAG_VIDEO_PARAM)
 static const AVOption raisr_opencl_options[] = {
     {"ratio", "ratio (currently only ratio of 2 is supported)", OFFSET(ratio),
-        AV_OPT_TYPE_FLOAT, {.dbl = DEFAULT_RATIO}, MIN_RATIO, MAX_RATIO, FLAGS},
+	 AV_OPT_TYPE_FLOAT, {.dbl = DEFAULT_RATIO}, MIN_RATIO, MAX_RATIO, FLAGS},
     {"bits", "bit depth", OFFSET(bits), AV_OPT_TYPE_INT, {.i64 = 8}, 8, 10, FLAGS},
     {"range", "input color range", OFFSET(range), AV_OPT_TYPE_INT, {.i64 = VideoRange}, VideoRange, FullRange, FLAGS, "range"},
         { "video", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = VideoRange  },   INT_MIN, INT_MAX, FLAGS, "range" },
@@ -236,8 +236,7 @@ static const AVFilterPad raisr_opencl_inputs[] = {
         .type         = AVMEDIA_TYPE_VIDEO,
         .filter_frame = &raisr_opencl_filter_frame,
         .config_props = &raisr_filter_config_input,
-    },
-    { NULL }
+    }
 };
 
 static const AVFilterPad raisr_opencl_outputs[] = {
@@ -245,8 +244,7 @@ static const AVFilterPad raisr_opencl_outputs[] = {
         .name         = "default",
         .type         = AVMEDIA_TYPE_VIDEO,
         .config_props = &raisr_opencl_config_output,
-    },
-    { NULL }
+    }
 };
 
 const AVFilter ff_vf_raisr_opencl = {
@@ -256,8 +254,8 @@ const AVFilter ff_vf_raisr_opencl = {
     .priv_class     = &raisr_opencl_class,
     .init           = &ff_opencl_filter_init,
     .uninit         = &raisr_opencl_uninit,
-    .inputs         = raisr_opencl_inputs,
-    .outputs        = raisr_opencl_outputs,
-    .query_formats  = &ff_opencl_filter_query_formats,
+    FILTER_INPUTS(raisr_opencl_inputs),
+    FILTER_OUTPUTS(raisr_opencl_outputs),
+    FILTER_SINGLE_PIXFMT(AV_PIX_FMT_OPENCL),
     .flags_internal = FF_FILTER_FLAG_HWFRAME_AWARE,
 };

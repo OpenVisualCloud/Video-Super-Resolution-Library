@@ -153,6 +153,12 @@ static av_cold int init(AVFilterContext *ctx)
     return 0;
 }
 
+static const enum AVPixelFormat raisr_fmts[] = {
+    AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10LE,
+    AV_PIX_FMT_YUV422P, AV_PIX_FMT_YUV444P,
+    AV_PIX_FMT_YUV422P10LE, AV_PIX_FMT_YUV444P10LE, AV_PIX_FMT_NONE
+};
+
 static int query_formats(AVFilterContext *ctx)
 {
     int raisr_fmts[] = {AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10LE,
@@ -322,16 +328,16 @@ static const AVFilterPad raisr_inputs[] = {
         .type = AVMEDIA_TYPE_VIDEO,
         .config_props = config_props_input,
         .filter_frame = filter_frame,
-    },
-    {NULL}};
+    }
+};
 
 static const AVFilterPad raisr_outputs[] = {
     {
         .name = "default",
         .type = AVMEDIA_TYPE_VIDEO,
         .config_props = config_props_output,
-    },
-    {NULL}};
+    }
+};
 
 AVFilter ff_vf_raisr = {
     .name = "raisr",
@@ -339,9 +345,9 @@ AVFilter ff_vf_raisr = {
     .priv_size = sizeof(RaisrContext),
     .init = init,
     .uninit = uninit,
-    .query_formats = query_formats,
-    .inputs = raisr_inputs,
-    .outputs = raisr_outputs,
+    FILTER_PIXFMTS_ARRAY(raisr_fmts),
+    FILTER_INPUTS(raisr_inputs),
+    FILTER_OUTPUTS(raisr_outputs),
     .priv_class = &raisr_class,
     .flags = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC,
 };
