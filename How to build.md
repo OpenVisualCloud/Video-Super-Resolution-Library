@@ -60,9 +60,7 @@ The `.pc` files of x264 and x265 libraries are in `/usr/local/lib/pkgconfig`, ad
 Follow this guide to setup gpu driver [installation](https://dgpu-docs.intel.com/driver/installation.html) \
 Install OpenCL: \
 `sudo apt update` \
-`sudo apt install libopencv-dev` \
-`sudo apt install intel-opencl-icd opencl-headers ocl-icd-opencl-dev clinfo` \
-`sudo apt install mesa-opencl-icd` \
+`sudo apt install intel-opencl-icd opencl-headers ocl-icd-opencl-dev` \
 
 ### Install Intel latest OpenCL driver
 [intel/compute-runtime](https://github.com/intel/compute-runtime/releases)
