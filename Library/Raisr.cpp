@@ -1081,9 +1081,9 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
             int rOffset = r - gIppCtx.segZones[passIdx][threadIdx].scaleStartRow;
             for (int c = gLoopMargin; c + unrollSizePatchBased <= cols - gLoopMargin; c += unrollSizePatchBased)
             {
-#pragma unroll(unrollSizePatchBased)
                 if (gUsePixelType)
                 {
+#pragma unroll(unrollSizePatchBased)
                     for (pix = 0; pix < unrollSizePatchBased; pix++)
                     {
                         pixelType[pix] = ((r - gPatchMargin) % (int)gRatio) * (int)gRatio + ((c + pix - gPatchMargin) % (int)gRatio);
