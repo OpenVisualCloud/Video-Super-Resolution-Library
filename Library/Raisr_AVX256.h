@@ -28,6 +28,6 @@ inline void load3x3_ps(float *img, unsigned int width, unsigned int height, unsi
 int inline CTRandomness_AVX256_32f(float *inYUpscaled32f, int cols, int r, int c, int pix);
 float inline DotProdPatch_AVX256_32f(const float *buf, const float *filter);
 void inline computeGTWG_Segment_AVX256_32f(const float *img, const int nrows, const int ncols, const int r, const int col, float GTWG[][4], float *buf1, float *buf2);
-void inline GetHashValue_AVX256_32f(float GTWG[8][4], int passIdx, int32_t *idx);
+void inline GetHashValue_AVX256_32f(float GTWG[][4], int passIdx, int32_t *idx);
 static void CTCountOfBitsChangedSegment_AVX256_32f(float *LRImage, float *HRImage, const int rows, const int startRow, const std::pair<int, int> blendingZone, unsigned char *outImage, const int cols, const int outImageCols);
 

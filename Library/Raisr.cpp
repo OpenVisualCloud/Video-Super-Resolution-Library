@@ -16,6 +16,7 @@
 #include <ipp.h>
 #include <cstring>
 #include <cmath>
+#include <vector>
 #include <immintrin.h>
 #include "ThreadPool.h"
 #include "cpuid.h"
@@ -257,7 +258,7 @@ RNLERRORTYPE RNLStoi(unsigned int *pValue, const char *configContent, std::strin
 }
 
 template <typename DT>
-static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrPath, std::string QCohPath, int pass, std::vector<std::vector<DT*>>& filterBuckets_in, DT* *filterBuffer_in)
+static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrPath, std::string QCohPath, int pass, std::vector<std::vector<DT*>>& filterBuckets_in, DT* *filterBuffer_in, std::vector<DT>& QStr_in, std::vector<DT>& QCoh_in)
 {
     if (pass == 2)
     {
@@ -267,8 +268,8 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
     }
     auto &filterBuckets = filterBuckets_in;
     auto &filterBuffer = *filterBuffer_in;
-    auto &QStr = (pass == 1) ? gQStr : gQStr2;
-    auto &QCoh = (pass == 1) ? gQCoh : gQCoh2;
+    auto &QStr = QStr_in;
+    auto &QCoh = QCoh_in;
 
     std::string line;
     // Read filter file
@@ -406,7 +407,7 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
         {
             if (RNLErrorNone != VerifyTrainedData(line, "StrFile", QStrPath))
                 return RNLErrorBadParameter;
-            QStr.push_back(std::stod(line));
+            QStr.push_back((DT) std::stod(line));
             num++;
         }
     }
@@ -442,7 +443,7 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
         {
             if (RNLErrorNone != VerifyTrainedData(line, "CohFile", QCohPath))
                 return RNLErrorBadParameter;
-            QCoh.push_back(std::stod(line));
+            QCoh.push_back((DT) std::stod(line));
             num++;
         }
     }
@@ -1068,6 +1069,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         int pix;
         int census = 0;
 #ifdef __AVX512FP16__
+        _Float16 GTWG_fp16[unrollSizePatchBased][4];
         const _Float16 *fbase_fp16[unrollSizePatchBased];
         _Float16 pixbuf_fp16[unrollSizePatchBased][128] __attribute__((aligned(64)));
 #endif
@@ -1102,7 +1104,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
 #ifdef __AVX512FP16__
                     else if (gAsmType == AVX512_FP16)
                         if (pix <= 1) {
-                            computeGTWG_Segment_AVX512FP16_16f((_Float16 *)pSeg32f, rows, cols, rOffset, c + 4 * pix, &GTWG[4 * pix], &pixbuf_fp16[4 * pix][0], &pixbuf_fp16[4 * pix + 1][0], &pixbuf_fp16[4 * pix + 2][0], &pixbuf_fp16[4 * pix + 3][0]);
+                            computeGTWG_Segment_AVX512FP16_16f((_Float16 *)pSeg32f, rows, cols, rOffset, c + 4 * pix, &GTWG_fp16[4 * pix], &pixbuf_fp16[4 * pix][0], &pixbuf_fp16[4 * pix + 1][0], &pixbuf_fp16[4 * pix + 2][0], &pixbuf_fp16[4 * pix + 3][0]);
                         } else { break; }
  #endif
                     else
@@ -1111,8 +1113,12 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                         return RNLErrorBadParameter;
                     }
                 }
-
-                GetHashValue_AVX256_32f(GTWG, passIdx, hashValue);
+#ifdef __AVX512FP16__
+                if (gAsmType == AVX512_FP16) {
+                    GetHashValue_AVX512FP16_16h(GTWG_fp16, passIdx, hashValue);
+                } else
+#endif
+                    GetHashValue_AVX256_32f(GTWG, passIdx, hashValue);
 
                 for (pix = 0; pix < unrollSizePatchBased; pix++)
                 {
@@ -1534,17 +1540,17 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
 
 #ifdef __AVX512FP16__
     if (gAsmType == AVX512_FP16) {
-        if (RNLErrorNone != ReadTrainedData<_Float16>(hashtablePath, QStrPath, QCohPath, 1 /*first pass*/, gFilterBuckets_fp16, &gFilterBuffer_fp16))
+        if (RNLErrorNone != ReadTrainedData<_Float16>(hashtablePath, QStrPath, QCohPath, 1 /*first pass*/, gFilterBuckets_fp16, &gFilterBuffer_fp16, gQStr_fp16, gQCoh_fp16))
             return RNLErrorBadParameter;
-        if (gPasses == 2 && RNLErrorNone != ReadTrainedData<_Float16>(hashtablePath, QStrPath, QCohPath, 2 /*second pass*/, gFilterBuckets2_fp16, &gFilterBuffer2_fp16))
+        if (gPasses == 2 && RNLErrorNone != ReadTrainedData<_Float16>(hashtablePath, QStrPath, QCohPath, 2 /*second pass*/, gFilterBuckets2_fp16, &gFilterBuffer2_fp16, gQStr2_fp16, gQCoh2_fp16))
             return RNLErrorBadParameter;
     } else
 #endif
     {
-    if (RNLErrorNone != ReadTrainedData<float>(hashtablePath, QStrPath, QCohPath, 1 /*first pass*/, gFilterBuckets, &gFilterBuffer))
+    if (RNLErrorNone != ReadTrainedData<float>(hashtablePath, QStrPath, QCohPath, 1 /*first pass*/, gFilterBuckets, &gFilterBuffer, gQStr, gQCoh))
         return RNLErrorBadParameter;
 
-    if (gPasses == 2 && RNLErrorNone != ReadTrainedData<float>(hashtablePath, QStrPath, QCohPath, 2 /*second pass*/, gFilterBuckets2, &gFilterBuffer2))
+    if (gPasses == 2 && RNLErrorNone != ReadTrainedData<float>(hashtablePath, QStrPath, QCohPath, 2 /*second pass*/, gFilterBuckets2, &gFilterBuffer2, gQStr2, gQCoh2))
         return RNLErrorBadParameter;
     }
 

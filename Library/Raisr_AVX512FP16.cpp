@@ -8,6 +8,7 @@
 #include "Raisr_AVX512FP16.h"
 #include <immintrin.h>
 #include <popcntintrin.h>
+#include <cmath>
 
 inline void load3x3_ph(_Float16 *img, unsigned int width, unsigned int height, unsigned int stride, __m128h *out_8neighbors_ph, __m128h *out_center_ph)
 {
@@ -107,7 +108,7 @@ inline __m512h GetGTWG_AVX512FP16(__m512h acc, __m512h a, __m512h w, __m512h b)
     return _mm512_fmadd_ph(_mm512_mul_ph(a, w), b, acc);
 }
 
-void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, const int ncols, const int r, const int col, float GTWG[][4], _Float16 *buf1, _Float16 *buf2, _Float16 *buf3, _Float16 *buf4)
+void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, const int ncols, const int r, const int col, _Float16 GTWG[][4], _Float16 *buf1, _Float16 *buf2, _Float16 *buf3, _Float16 *buf4)
 {
     // offset is the starting position(top left) of the block which centered by (r, c)
     int offset = (r - gLoopMargin) * ncols + col - gLoopMargin;
@@ -317,3 +318,116 @@ void CTCountOfBitsChangedSegment_AVX512FP16_16f(_Float16 *LRImage, _Float16 *HRI
     }
 }
 
+inline __m128h atan2Approximation_AVX512FP16_16h(__m128h y_ph, __m128h x_ph)
+{
+    const _Float16 ONEQTR_PI = M_PI / 4.0;
+    const _Float16 THRQTR_PI = 3.0 * M_PI / 4.0;
+    const __m128h zero_ph = _mm_set1_ph(0.0);
+    const __m128h oneqtr_pi_ph = _mm_set1_ph(ONEQTR_PI);
+    const __m128h thrqtr_pi_ph = _mm_set1_ph(THRQTR_PI);
+
+    __m128h abs_y_ph = _mm_add_ph( _mm_abs_ph(y_ph), _mm_set1_ph(1e-10f));
+
+    __m128h r_cond1_ph = _mm_div_ph( _mm_add_ph(x_ph, abs_y_ph), _mm_sub_ph(abs_y_ph, x_ph));
+    __m128h r_cond2_ph = _mm_div_ph( _mm_sub_ph(x_ph, abs_y_ph), _mm_add_ph(x_ph, abs_y_ph));
+    __mmask8 r_cmp_m8 =  _mm_cmp_ph_mask(x_ph, zero_ph, _CMP_LT_OQ);
+    __m128h r_ph = _mm_mask_blend_ph( r_cmp_m8, r_cond2_ph, r_cond1_ph);
+    __m128h angle_ph = _mm_mask_blend_ph( r_cmp_m8, oneqtr_pi_ph, thrqtr_pi_ph);
+
+    angle_ph = _mm_fmadd_ph(_mm_fmadd_ph(_mm_mul_ph(_mm_set1_ph(0.1963f), r_ph),
+                                                    r_ph, _mm_set1_ph(-0.9817f)),
+                                                    r_ph, angle_ph);
+
+    __m128h neg_angle_ph = _mm_mul_ph(_mm_set1_ph(-1), angle_ph);
+    return _mm_mask_blend_ph( _mm_cmp_ph_mask(y_ph, zero_ph, _CMP_LT_OQ), angle_ph, neg_angle_ph );
+}
+
+void GetHashValue_AVX512FP16_16h(_Float16 GTWG[8][4], int passIdx, int32_t *idx) {
+    const _Float16 one = 1.0;
+    const _Float16 two = 2.0;
+    const _Float16 four = 4.0;
+    const _Float16 pi = PI;
+    const _Float16 near_zero = 0.00000000000000001;
+
+    const __m128h zero_ph = _mm_setzero_ph();
+    const __m128h one_ph = _mm_set1_ph(1);
+    const __m128i zero_epi16 = _mm_setzero_si128();
+    const __m128i one_epi16 = _mm_set1_epi16(1);
+    const __m128i two_epi16 = _mm_set1_epi16(2);
+
+    const int cmp_le = _CMP_LE_OQ;
+    const int cmp_gt = _CMP_GT_OQ;
+
+    __m128h m_a_ph = _mm_setr_ph   (GTWG[0][0], GTWG[1][0], GTWG[2][0], GTWG[3][0],
+                                   GTWG[4][0], GTWG[5][0], GTWG[6][0], GTWG[7][0]);
+    __m128h m_b_ph = _mm_setr_ph   (GTWG[0][1], GTWG[1][1], GTWG[2][1], GTWG[3][1],
+                                   GTWG[4][1], GTWG[5][1], GTWG[6][1], GTWG[7][1]);
+    __m128h m_d_ph = _mm_setr_ph   (GTWG[0][3], GTWG[1][3], GTWG[2][3], GTWG[3][3],
+                                   GTWG[4][3], GTWG[5][3], GTWG[6][3], GTWG[7][3]);
+    __m128h T_ph = _mm_add_ph(m_a_ph, m_d_ph);
+    __m128h D_ph = _mm_sub_ph( _mm_mul_ph( m_a_ph, m_d_ph),
+                                _mm_mul_ph( m_b_ph, m_b_ph));
+
+    __m128h sqr_ph = _mm_sqrt_ph( _mm_sub_ph( _mm_div_ph ( _mm_mul_ph(T_ph, T_ph),
+                                                           _mm_set1_ph(four)), D_ph));
+
+    __m128h half_T_ph = _mm_div_ph ( T_ph, _mm_set1_ph(two) );
+    __m128h L1_ph = _mm_add_ph( half_T_ph, sqr_ph);
+    __m128h L2_ph = _mm_sub_ph( half_T_ph, sqr_ph);
+
+    __m128h angle_ph = zero_ph;
+
+    __m128h blend_ph = _mm_mask_blend_ph( _mm_cmp_ph_mask(m_b_ph, zero_ph, _CMP_NEQ_OQ),
+                                            one_ph, _mm_sub_ph(L1_ph, m_d_ph));
+
+#ifdef USE_ATAN2_APPROX
+    angle_ph = atan2Approximation_AVX512FP16_16h( m_b_ph, blend_ph);
+#else
+    angle_ph = _mm_atan2_ph( m_b_ph, blend_ph);
+#endif
+
+    angle_ph = _mm_add_ph ( angle_ph, _mm_mask_blend_ph( _mm_cmp_ph_mask(angle_ph, zero_ph, _CMP_LT_OQ), zero_ph, _mm_set1_ph(pi)));
+
+    __m128h sqrtL1_ph = _mm_sqrt_ph( L1_ph );
+    __m128h sqrtL2_ph = _mm_sqrt_ph( L2_ph );
+    __m128h coherence_ph = _mm_div_ph( _mm_sub_ph( sqrtL1_ph, sqrtL2_ph ),
+                                        _mm_add_ph( _mm_add_ph(sqrtL1_ph, sqrtL2_ph), _mm_set1_ph(near_zero) ) );
+    __m128h strength_ph = L1_ph;
+
+    __m128i angleIdx_epi16 = _mm_cvtph_epi16( _mm_mul_ph (angle_ph, _mm_set1_ph(gQAngle)));
+
+    __m128i quantAngle_lessone_epi16 = _mm_sub_epi16(_mm_set1_epi16(gQuantizationAngle), one_epi16);
+    angleIdx_epi16 = _mm_mask_blend_epi16( _mm_cmp_epi16_mask( angleIdx_epi16, quantAngle_lessone_epi16, _MM_CMPINT_GT),
+                                            _mm_mask_blend_epi16(_mm_cmp_epi16_mask( angleIdx_epi16, zero_epi16, _MM_CMPINT_LT),
+                                                                                        angleIdx_epi16,
+                                                                                        zero_epi16), 
+                                            quantAngle_lessone_epi16);
+
+   // AFAIK, today QStr & QCoh are vectors of size 2.  I think searchsorted can return an index of 0,1, or 2
+    _Float16 *gQStr_data, *gQCoh_data;
+    if (passIdx == 0) gQStr_data = gQStr_fp16.data(); else gQStr_data = gQStr2_fp16.data();
+    if (passIdx == 0) gQCoh_data = gQCoh_fp16.data(); else gQCoh_data = gQCoh2_fp16.data();
+    __m128h gQStr1_ph = _mm_set1_ph(gQStr_data[0]);
+    __m128h gQStr2_ph = _mm_set1_ph(gQStr_data[1]);
+    __m128h gQCoh1_ph = _mm_set1_ph(gQCoh_data[0]);
+    __m128h gQCoh2_ph = _mm_set1_ph(gQCoh_data[1]);
+
+
+    __m128i strengthIdx_epi16 = _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQStr1_ph, strength_ph, _MM_CMPINT_LE),
+                                                                     zero_epi16,
+                                                                     _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQStr2_ph, strength_ph, _MM_CMPINT_LE),   
+                                                                                          two_epi16,
+                                                                                          one_epi16));
+    __m128i coherenceIdx_epi16 = _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQCoh1_ph, coherence_ph, _MM_CMPINT_LE),
+                                                                     zero_epi16,
+                                                                     _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQCoh2_ph, coherence_ph, _MM_CMPINT_LE),   
+                                                                                          two_epi16,
+                                                                                          one_epi16));
+
+   const __m128i gQuantizationCoherence_epi16 = _mm_set1_epi16(gQuantizationCoherence);
+    __m128i idx_epi16 = _mm_mullo_epi16(gQuantizationCoherence_epi16,
+                                            _mm_mullo_epi16( (angleIdx_epi16), _mm_set1_epi16(gQuantizationStrength)));
+    idx_epi16 = _mm_add_epi16((coherenceIdx_epi16),
+                                _mm_add_epi16(idx_epi16, _mm_mullo_epi16((strengthIdx_epi16), gQuantizationCoherence_epi16)));
+    _mm256_storeu_si256((__m256i *)idx, _mm256_cvtepi16_epi32(idx_epi16));
+}

@@ -170,6 +170,12 @@ float *gFilterBuffer2;
 
 // used for FP16 implementation
 #ifdef __AVX512FP16__
+
+std::vector<_Float16> gQStr_fp16;
+std::vector<_Float16> gQCoh_fp16;
+std::vector<_Float16> gQStr2_fp16;
+std::vector<_Float16> gQCoh2_fp16;
+
 std::vector<std::vector<_Float16 *>> gFilterBuckets_fp16;
 std::vector<std::vector<_Float16 *>> gFilterBuckets2_fp16;
 _Float16 *gFilterBuffer_fp16;
