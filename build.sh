@@ -17,28 +17,9 @@ cd_safe() {
     fi
 }
 
-# Usage: build <no_docker> [test]
+# Usage: build [test]
 build() (
     build_type=Release
-    docker_flag=true
-    while [ -n "$*" ]; do
-        case "$(printf %s "$1" | tr '[:upper:]' '[:lower:]')" in
-        no_docker) docker_flag=false && shift ;;
-        centos_docker)  docker build --build-arg http_proxy=${http_proxy} --build-arg https_proxy=${https_proxy} -f Dockerfile.Centos7.9 -t  centos:raisr . && return 0 ;;
-        *) break ;;
-        esac
-    done
-    if $docker_flag; then
-    # docker builds don't support intel cc, so reassign compiler
-        if check_executable clang++; then
-            CXX=$(check_executable -p clang++)
-        elif check_executable g++; then
-            CXX=$(check_executable -p g++)
-        else
-            die "No suitable cpp compiler found in path" \
-            "Please either install one or set it via cxx=*"
-        fi
-    fi
     echo "Create folder: build, build type: $build_type"
     mkdir -p build > /dev/null 2>&1
     cd_safe build
@@ -56,11 +37,6 @@ build() (
     fi
 
     cd ..
-    cp build/Library/libraisr.a .
-
-    if [ "$docker_flag" = "true" ]; then
-        docker build --build-arg http_proxy=${http_proxy} --build-arg https_proxy=${https_proxy} -t   raisr .
-    fi
 )
 
 

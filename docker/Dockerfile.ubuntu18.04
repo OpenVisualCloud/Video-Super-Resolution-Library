@@ -1,0 +1,60 @@
+# Copyright (c) 2020-2021 Intel Corporation.
+# SPDX-License-Identifier: BSD-3-Clause
+
+# use Ubuntu 18.04 with Intel IPP 
+FROM intel/oneapi-basekit:devel-ubuntu18.04
+
+# Use bash shell
+RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+#
+# Update apt and install dependances
+RUN apt-get update && apt-get install  -y \
+libx265-dev \
+libx264-dev \
+zlib1g-dev \
+nasm
+
+#
+# Install and configure gcc 9
+RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test
+RUN apt-get -y install gcc-9 g++-9
+RUN update-alternatives \
+--install /usr/bin/gcc gcc /usr/bin/gcc-9 90 \
+--slave /usr/bin/g++ g++ /usr/bin/g++-9 \
+--slave /usr/bin/gcov gcov /usr/bin/gcov-9
+#
+# Setup raisrfolder as the working folder
+WORKDIR /raisrfolder
+COPY . /raisrfolder/Video-Super-Resolution-Library
+RUN cd Video-Super-Resolution-Library && \
+	./build.sh 
+
+WORKDIR /raisrfolder
+RUN git config --global user.email "you@example.com"
+RUN git clone https://github.com/FFmpeg/FFmpeg ffmpeg
+WORKDIR /raisrfolder/ffmpeg
+RUN git checkout -b n6.0 n6.0 && \
+	cp /raisrfolder/Video-Super-Resolution-Library/ffmpeg/*.patch . && \
+	cp /raisrfolder/Video-Super-Resolution-Library/ffmpeg/vf_raisr*.c ./libavfilter && \
+        git am *.patch
+
+#
+
+# Configure and build ffmpeg
+RUN ./configure \
+--enable-libipp \
+--extra-cflags=-fopenmp \
+--extra-ldflags=-fopenmp \
+--enable-gpl \
+--enable-libx264 \
+--enable-libx265 \
+--extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm -lintlc -lsvml' \ 
+--enable-cross-compile && \
+make clean && make -j $(nproc)
+
+# Copy the raisr filters from the raisr library
+RUN cp -r /raisrfolder/Video-Super-Resolution-Library/filters* ./
+
+# Run ffmpeg and verify that the raisr filter is supported
+RUN ./ffmpeg -h filter=raisr
+

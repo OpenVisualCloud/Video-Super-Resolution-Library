@@ -17,7 +17,7 @@ source /opt/intel/oneapi/ipp/latest/env/vars.sh
 
 # build raisr
 cd $raisr_path
-sudo -E ./build.sh no_docker
+sudo -E ./build.sh
 
 # build ffmpeg
 cd ../ffmpeg

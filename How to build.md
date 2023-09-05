@@ -1,6 +1,6 @@
 # Prerequisites
 To build this project you will need:
-- Linux based OS (Tested and validated on Ubuntu 18.04 LTS)
+- Linux based OS (Tested and validated on Ubuntu 18.04 LTS, Ubuntu 22.04 and CentOS 7.9)
 - [Docker](https://www.docker.com/) 
 - Intel Xeon hardware which supports Intel AVX512 (Skylake generation or later)
 - Compiler (clang++, g++) 
@@ -8,10 +8,35 @@ To build this project you will need:
 - Intel® Integrated Performance Primitives (Intel® IPP) (Stand-Alone Version is the minimum requirement)
 - zlib1g-dev, pkg-config (The pkg-config is used to find x264.pc/x265.pc in specific pkgconfig path.)
 
-You can use the build [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/master/scripts) to build or follow the steps for manually building.
+We provide 3 ways to build the Intel VSR with FFmpeg environment:
+- build docker images with dockerfiles
+- build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/master/scripts)
+- build manually.
+
+# Build Docker Images.
+
+We provide 3 Dockerfile: Ubuntu18.04, Ubuntu22.04 and CentOS7.9. You can refer to below steps to build docker images.
+## Setup docker proxy as follows if you are behind a firewall:
+```
+sudo mkdir -p /etc/systemd/system/docker.service.d
+printf "[Service]\nEnvironment=\"HTTPS_PROXY=$https_proxy\" \"NO_PROXY=$no_proxy\"\n" | sudo tee /etc/systemd/system/docker.service.d/proxy.conf
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
+## build docker image via docker_build.sh
+The usage of the script is as follows
+```
+./docker_build.sh <OS> <OS_VERSION>
+
+./docker_build.sh ubuntu 22.04 #for building Ubuntu22.04
+./docker_build.sh ubuntu 18.04 #for building Ubuntu18.04
+./docker_build.sh centos 7.9 #for building CentOS7.9
+```
+If the image is built successfully, you can find a docker image named `raisr:ubuntu22.04` or `raisr:ubuntu18.04` or `raisr:centos7.9` with command `docker images`
 
 # Build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/master/scripts)
-You can follow the steps below to setup enviroment: \
+If the user would prefer not to use Docker, you can follow the steps below to setup enviroment: \
     `cd Video-Super-Resolution-Library/scripts` \
     `./01_pull_resources.sh` \
     `./02_install_prerequisites.sh /xxx/raisr.tar.gz` \
@@ -67,43 +92,22 @@ Install OpenCL: \
 
 ## Use FFmpeg RAISR plugin
 
-### Build and install the Intel® Library for VSR with Docker
-In the top level directory of the repository, run
-``` 
-sudo -E ./build.sh
-```
-The library and docker image will automatically be built within `build.sh`. It needs to set `http_proxy` and `https_proxy` enviroment variables before runing `build.sh` to build docker image.
-
-If the user is not root and does not have sudo permission, it is assumed that the user has been added to the Docker cgroup and the user must provide the path to the install directory when building. 
-```
-./build.sh -DCMAKE_INSTALL_PREFIX="$PWD/install"
-```
-
-This simple command will run the image in a docker container:
-```
-docker run -ti --rm raisr /bin/bash
-```
-Alternatively, it could be useful to create an input folder containing videos or images for testing the Intel Library for VSR.  That (and other) folders can then be binded as a volume between your host system and the docker container:
-```
-docker run -ti --rm -v $PWD/input_files:/input_files -v $PWD/output_files:/output_files raisr /bin/bash
-```
-
 ### Build and install the Intel Library for VSR Manually
 
 If the user would prefer not to use Docker, these instructions may be utilized to setup the Intel Library for VSR.
 
 To build the library without building the docker image, run \
-`./build.sh no_docker -DCMAKE_INSTALL_PREFIX="$PWD/install"`
+`./build.sh -DCMAKE_INSTALL_PREFIX="$PWD/install"`
 
 To build the library with OpenCL support, run \
-`./build.sh no_docker -DCMAKE_INSTALL_PREFIX="$PWD/install" -DENABLE_RAISR_OPENCL=ON`
+`.  -DCMAKE_INSTALL_PREFIX="$PWD/install" -DENABLE_RAISR_OPENCL=ON`
 
 #### Clone FFmpeg
 `git clone https://github.com/FFmpeg/FFmpeg ffmpeg` \
 `cd ffmpeg`
 
-#### Checkout FFmpeg version 4.4 tag
-`git checkout release/4.4`
+#### Checkout FFmpeg version 6.0 tag
+`git checkout -b n6.0 n6.0`
 
 #### Copy vf_raisr.c to ffmpeg libavfilter folder
 `cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr.c libavfilter/` \

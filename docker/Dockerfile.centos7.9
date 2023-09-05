@@ -1,17 +1,28 @@
+# Copyright (c) 2023 Intel Corporation.
+# SPDX-License-Identifier: BSD-3-Clause
+
 FROM centos:centos7.9.2009
 
 WORKDIR /opt/build
 
 # download and install dependencies
-RUN yum install -y -q epel-release centos-release-scl && rm -rf /var/yum/cache/* && \
-    yum install -y git wget gcc-c++ make bzip2 libmpc-devel && \
+RUN   yum install -y git wget gcc-c++ make bzip2 zlib-devel texinfo && \
     wget https://registrationcenter-download.intel.com/akdlm/irc_nas/19007/l_ipp_oneapi_p_2021.6.2.16995_offline.sh && \
     chmod +x ./l_ipp_oneapi_p_2021.6.2.16995_offline.sh && \
     ./l_ipp_oneapi_p_2021.6.2.16995_offline.sh -a -s --eula accept
 
-RUN wget https://ftp.gnu.org/gnu/gcc/gcc-11.2.0/gcc-11.2.0.tar.gz --no-check-certificate && \
-    tar -xvf ./gcc-11.2.0.tar.gz && \
-    cd ./gcc-11.2.0 && \
+# update binutils to 2.38 to support avx512fp16 instructions.
+RUN wget https://ftp.gnu.org/gnu/binutils/binutils-2.38.tar.gz --no-check-certificate && \
+	tar -xf binutils-2.38.tar.gz && \
+	cd binutils-2.38 && \
+	CC=gcc ./configure && \
+	make -j$(nproc) && \
+	make install
+
+RUN wget https://ftp.gnu.org/gnu/gcc/gcc-12.3.0/gcc-12.3.0.tar.gz --no-check-certificate && \
+    tar -xvf ./gcc-12.3.0.tar.gz && \
+    cd ./gcc-12.3.0 && \
+    ./contrib/download_prerequisites && \
     ./configure --prefix=/usr --enable-multilib --enable-languages=c,c++ -disable-multilib && \
     make -j$(nproc) && \
     make install
@@ -49,23 +60,24 @@ RUN wget ${LIBX265} && \
     make install
 
 # download raisr and ffmpeg
-RUN git clone https://github.com/OpenVisualCloud/Video-Super-Resolution-Library.git && \
-    git clone https://github.com/FFmpeg/FFmpeg.git ffmpeg && \
+COPY . /opt/build/Video-Super-Resolution-Library
+RUN ls /opt/build
+RUN  git clone https://github.com/FFmpeg/FFmpeg.git ffmpeg && \
     cd ffmpeg && \
     git checkout -b n6.0 n6.0 && \
     git config --global user.email "you@example.com" && \
-    git am ../Video-Super-Resolution-Library/ffmpeg/0001-ffmpeg-raisr-filter.patch
+    git am ../Video-Super-Resolution-Library/ffmpeg/*.patch
 
 RUN rm l_ipp_oneapi_p_2021.6.2.16995_offline.sh  && \
     rm 3.4.tar.gz  && \
     rm cmake-3.14.0.tar.gz  && \
     rm nasm-2.15.05.tar.bz2  && \
-    rm gcc-11.2.0.tar.gz  && \
+    rm gcc-12.3.0.tar.gz  && \
     rm -rf ./x264  && \
     rm -rf ./x265-3.4  && \
     rm -rf ./cmake-3.14.0  && \
     rm -rf ./nasm-2.15.05  && \
-    rm -rf ./gcc-11.2.0
+    rm -rf ./gcc-11.3.0
 
 # Build raisr and ffmpeg
 ENV PKG_CONFIG_PATH "/usr/local/lib/pkgconfig"
@@ -77,10 +89,10 @@ ENV LD_LIBRARY_PATH "/opt/intel/oneapi/ipp/latest/lib/intel64:/usr/local/lib"
 ENV LIBRARY_PATH "/opt/intel/oneapi/ipp/latest/lib/intel64"
 
 WORKDIR /opt/build/Video-Super-Resolution-Library
-RUN ./build.sh no_docker
+RUN ./build.sh
 
 WORKDIR /opt/build/ffmpeg
-RUN cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr.c libavfilter/ && \
+RUN cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr*.c libavfilter/ && \
     ./configure \
     --enable-libipp \
     --extra-cflags="-fopenmp" \
