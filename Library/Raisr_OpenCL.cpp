@@ -88,13 +88,13 @@ static RNLERRORTYPE buildProgram(RaisrOpenCLContext *raisrOpenCLContext,
                                  RaisrModel *raisrModel, cl_context context,
                                  cl_device_id deviceID, const char *modelPath)
 {
-    FILE *programHandle;
+    FILE *programHandle = NULL;
     char *programBuffer = NULL, *programLog = NULL;
     size_t programSize, logSize;
     RNLERRORTYPE ret = RNLErrorNone;
     int err, i, colorRangeMin, colorRangeMax;
     std::string strengthList, coherenceList;
-    char *filterShader;
+    char *filterShader, *mallocFilterShader = NULL;
 
     for (i = 0; i < raisrModel->qStr.size() - 1; i++)
         strengthList += std::to_string(raisrModel->qStr[i]) + ",";
@@ -113,16 +113,28 @@ static RNLERRORTYPE buildProgram(RaisrOpenCLContext *raisrOpenCLContext,
             return RNLErrorBadParameter;
         }
         fseek(programHandle, 0, SEEK_END);
-        programSize = ftell(programHandle);
+        err = ftell(programHandle);
+        if (err <= 0) {
+            std::cout << "[RAISR OPENCL ERROR] Couldn't get the kernel file size" << std::endl;
+            ret = RNLErrorBadParameter;
+            goto fail;
+        }
+        programSize = err;
         rewind(programHandle);
-        filterShader = (char*)malloc(programSize + 1);
-        if (!filterShader) {
+        mallocFilterShader = (char*)malloc(programSize + 1);
+        if (!mallocFilterShader) {
             ret = RNLErrorInsufficientResources;
             goto fail;
         }
+        filterShader = mallocFilterShader;
         filterShader[programSize] = '\0';
         err = fread(filterShader, sizeof(char), programSize, programHandle);
+        if (err < 0) {
+            ret = RNLErrorBadParameter;
+            goto fail;
+        }
         fclose(programHandle);
+        programHandle = NULL;
     } else
         filterShader = (char *)gFilterShader;
 
@@ -185,6 +197,10 @@ static RNLERRORTYPE buildProgram(RaisrOpenCLContext *raisrOpenCLContext,
     }
 
 fail:
+    if (mallocFilterShader)
+        free(mallocFilterShader);
+    if (programHandle)
+        fclose(programHandle);
     if (programLog)
         free(programLog);
     if (programBuffer)
@@ -357,7 +373,6 @@ RNLERRORTYPE RaisrOpenCLInit(RaisrOpenCLContext *raisrOpenCLContext)
             return RNLErrorUndefined;
         }
         free(pGaussianW);
-        pGaussianW = nullptr;
     }
     return RNLErrorNone;
 }
