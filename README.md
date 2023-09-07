@@ -145,3 +145,7 @@ The Intel Library for VSR is licensed under the BSD 3-Clause "New" or "Revised" 
 Use the Issues tab on Github.
 
 Intel, the Intel logo and Xeon are trademarks of Intel Corporation or its subsidiaries.
+
+# License
+
+Intel Library for VSR is licensed under the BSD 3-clause license.
