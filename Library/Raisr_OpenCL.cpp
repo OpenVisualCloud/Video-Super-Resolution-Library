@@ -382,11 +382,11 @@ RNLERRORTYPE RaisrOpenCLSetRes(RaisrOpenCLContext *raisrOpenCLContext, int width
 {
     RaisrContextOpenCLPriv *raisrContextOpenCLPriv = (RaisrContextOpenCLPriv *)raisrOpenCLContext->priv;
     raisrOpenCLContext->widthMax = widthY;
-    raisrOpenCLContext->heightMax = widthY;
+    raisrOpenCLContext->heightMax = heightY;
     int LR_width = widthY;
-    int LR_height = widthY;
+    int LR_height = heightY;
     int HR_width = widthY * raisrOpenCLContext->gRatio;
-    int HR_height = widthY * raisrOpenCLContext->gRatio;
+    int HR_height = heightY * raisrOpenCLContext->gRatio;
     int err = 0;
 
     raisrContextOpenCLPriv->outputMemY = clCreateBuffer(raisrOpenCLContext->context, CL_MEM_READ_WRITE, HR_width*HR_height*sizeof(float), NULL, &err);
