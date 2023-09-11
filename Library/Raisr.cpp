@@ -1263,7 +1263,7 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
                         VideoDataType *outY, VideoDataType *outCr, VideoDataType *outCb, BlendingMode blendingMode)
 {
     if (!inCr || !inCr->pData || !outCr || !outCr->pData ||
-        !inY || !inY->pData || !outY || !outY->pData)
+        !inY || !inY->pData || !outY || !outY->pData || !inCb || !outCb ||!outCb->pData)
         return RNLErrorBadParameter;
 
 #ifdef ENABLE_RAISR_OPENCL
@@ -1318,7 +1318,7 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
     }
 #endif
 
-    if (!inCb || !inCb->pData || !outCb || !outCb->pData)
+    if (!inCb->pData)
         return RNLErrorBadParameter;
 
     memset((void *)threadStatus, 0, 120 * sizeof(threadStatus[0]));
@@ -1542,7 +1542,7 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     if (gAsmType == AVX512_FP16) {
         if (RNLErrorNone != ReadTrainedData<_Float16>(hashtablePath, QStrPath, QCohPath, 1 /*first pass*/, gFilterBuckets_fp16, &gFilterBuffer_fp16, gQStr_fp16, gQCoh_fp16))
             return RNLErrorBadParameter;
-        if (gPasses == 2 && RNLErrorNone != ReadTrainedData<_Float16>(hashtablePath, QStrPath, QCohPath, 2 /*second pass*/, gFilterBuckets2_fp16, &gFilterBuffer2_fp16, gQStr2_fp16, gQCoh2_fp16))
+        if (gPasses == 2 && RNLErrorNone != ReadTrainedData<_Float16>(std::move(hashtablePath), std::move(QStrPath), std::move(QCohPath), 2 /*second pass*/, gFilterBuckets2_fp16, &gFilterBuffer2_fp16, gQStr2_fp16, gQCoh2_fp16))
             return RNLErrorBadParameter;
     } else
 #endif
@@ -1550,7 +1550,7 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     if (RNLErrorNone != ReadTrainedData<float>(hashtablePath, QStrPath, QCohPath, 1 /*first pass*/, gFilterBuckets, &gFilterBuffer, gQStr, gQCoh))
         return RNLErrorBadParameter;
 
-    if (gPasses == 2 && RNLErrorNone != ReadTrainedData<float>(hashtablePath, QStrPath, QCohPath, 2 /*second pass*/, gFilterBuckets2, &gFilterBuffer2, gQStr2, gQCoh2))
+    if (gPasses == 2 && RNLErrorNone != ReadTrainedData<float>(std::move(hashtablePath), std::move(QStrPath), std::move(QCohPath), 2 /*second pass*/, gFilterBuckets2, &gFilterBuffer2, gQStr2, gQCoh2))
         return RNLErrorBadParameter;
     }
 

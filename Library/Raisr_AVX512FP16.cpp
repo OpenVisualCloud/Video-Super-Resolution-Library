@@ -9,7 +9,7 @@
 #include <immintrin.h>
 #include <popcntintrin.h>
 #include <cmath>
-
+#include<string.h>
 inline void load3x3_ph(_Float16 *img, unsigned int width, unsigned int height, unsigned int stride, __m128h *out_8neighbors_ph, __m128h *out_center_ph)
 {
     int index = (height - 1) * stride + (width - 1);
@@ -36,7 +36,7 @@ inline __mmask8 compare3x3_ph(__m128h a, __m128h b)
 int CTRandomness_AVX512FP16_16f(_Float16 *inYUpscaled16f, int cols, int r, int c, int pix) {
     int census_count = 0;
 
-    __m128h row_ph, center_ph;
+    __m128h row_ph=_mm_setzero_ph(), center_ph=_mm_setzero_ph();
 
     load3x3_ph(inYUpscaled16f, c + pix, r, cols, &row_ph, &center_ph);
 
@@ -60,7 +60,9 @@ inline _Float16 sumituphalf_AVX512FP16_16f(__m256h acc)
                                 _mm_castps_ph(_mm_movehdup_ps( _mm_castph_ps(r4))));
     // cant spot fp16 move/shift instr to add final two entries, so doing it in c
     float sum_f = (_mm_cvtss_f32( _mm_castph_ps(r2)));
-    _Float16 *sum = (_Float16*) &sum_f;
+    //_Float16 *sum = (_Float16*) &sum_f;
+    _Float16 sum[2] = {0};
+    memcpy(sum,&sum_f,sizeof(float));
     return sum[0] + sum[1];
 /*
  * not any faster...
