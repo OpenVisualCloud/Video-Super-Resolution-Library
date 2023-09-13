@@ -1263,14 +1263,19 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
                         VideoDataType *outY, VideoDataType *outCr, VideoDataType *outCb, BlendingMode blendingMode)
 {
     if (!inCr || !inCr->pData || !outCr || !outCr->pData ||
-        !inY || !inY->pData || !outY || !outY->pData || !inCb || !outCb ||!outCb->pData)
+        !inY || !inY->pData || !outY || !outY->pData)
         return RNLErrorBadParameter;
 
 #ifdef ENABLE_RAISR_OPENCL
     RNLERRORTYPE ret = RNLErrorNone;
-    int nbComponent = 1;
-    if (!inCb->pData)
+    int nbComponent;
+    if ((!inCb || !inCb->pData) && (!outCb || !outCb->pData))
         nbComponent = 2;
+    else if (inCb && inCb->pData && outCb && outCb->pData)
+        nbComponent = 1;
+    else
+        return RNLErrorBadParameter;
+
     if (gAsmType == OpenCL) {
         ret = RaisrOpenCLProcessY(&gOpenCLContext, inY->pData, inY->width, inY->height, inY->step,
                                   outY->pData, outY->step, inY->bitShift, blendingMode);
@@ -1318,7 +1323,7 @@ RNLERRORTYPE RNLProcess(VideoDataType *inY, VideoDataType *inCr, VideoDataType *
     }
 #endif
 
-    if (!inCb->pData)
+    if (!inCb || !inCb->pData || !outCb ||!outCb->pData)
         return RNLErrorBadParameter;
 
     memset((void *)threadStatus, 0, 120 * sizeof(threadStatus[0]));
