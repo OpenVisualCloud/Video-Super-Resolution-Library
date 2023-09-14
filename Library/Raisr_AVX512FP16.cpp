@@ -49,6 +49,16 @@ int CTRandomness_AVX512FP16_16f(_Float16 *inYUpscaled16f, int cols, int r, int c
     return census_count;
 }
 
+inline void sumitup2lane_AVX512FP16_16f(__m512h acc, _Float16 *out_lower, _Float16 *out_upper) {
+    __m512h r8_2 = _mm512_add_ph( acc, _mm512_castsi512_ph(_mm512_permutex_epi64( _mm512_castph_si512(acc), 14 ))); // move 2 and 3 to 0 and 1 positions
+    __m512h r4_2 = _mm512_add_ph( r8_2, _mm512_castpd_ph(_mm512_movedup_pd( _mm512_castph_pd(r8_2) )));
+    __m512h r2_2 = _mm512_add_ph( r4_2, _mm512_castps_ph(_mm512_movehdup_ps( _mm512_castph_ps(r4_2) )));
+    __m512h r1_2 = _mm512_add_ph( r2_2, _mm512_castsi512_ph(_mm512_bsrli_epi128(_mm512_castph_si512(r2_2), 2)));
+    r1_2 = _mm512_castsi512_ph(_mm512_permutex_epi64( _mm512_castph_si512(r1_2), 5 )); // move 1 to 0 and 1 positions
+    (*out_lower) = _mm_cvtsh_h(_mm512_castph512_ph128(r1_2));
+    (*out_upper) = _mm_cvtsh_h(_mm_castps_ph(_mm512_extractf32x4_ps(_mm512_castph_ps(r1_2), 2)));
+}
+
 inline _Float16 sumituphalf_AVX512FP16_16f(__m256h acc)
 {
     // donts see extract instructions for ph, so we cast and use the ps version
@@ -163,24 +173,29 @@ void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, co
         a = b;
         b = c;
     }
-    GTWG[0][0] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg0A)) * normal;
-    GTWG[0][1] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg1A)) * normal;
-    GTWG[0][3] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg3A)) * normal;
-    GTWG[0][2] = GTWG[0][1];
 
-    GTWG[2][0] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg0A),1))) * normal;
-    GTWG[2][1] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg1A),1))) * normal;
-    GTWG[2][3] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg3A),1))) * normal;
+    sumitup2lane_AVX512FP16_16f(gtwg0A, &GTWG[0][0], &GTWG[2][0]);
+    GTWG[0][0] *= normal;
+    GTWG[2][0] *= normal;
+    sumitup2lane_AVX512FP16_16f(gtwg0A, &GTWG[0][1], &GTWG[2][1]);
+    GTWG[0][1] *= normal;
+    GTWG[2][1] *= normal;
+    sumitup2lane_AVX512FP16_16f(gtwg0A, &GTWG[0][3], &GTWG[2][3]);
+    GTWG[0][3] *= normal;
+    GTWG[2][3] *= normal;
+    GTWG[0][2] = GTWG[0][1];
     GTWG[2][2] = GTWG[2][1];
 
-    GTWG[1][0] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg0B)) * normal;
-    GTWG[1][1] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg1B)) * normal;
-    GTWG[1][3] = sumituphalf_AVX512FP16_16f(_mm512_castph512_ph256(gtwg3B)) * normal;
+    sumitup2lane_AVX512FP16_16f(gtwg0A, &GTWG[1][0], &GTWG[3][0]);
+    GTWG[1][0] *= normal;
+    GTWG[3][0] *= normal;
+    sumitup2lane_AVX512FP16_16f(gtwg0A, &GTWG[1][1], &GTWG[3][1]);
+    GTWG[1][1] *= normal;
+    GTWG[3][1] *= normal;
+    sumitup2lane_AVX512FP16_16f(gtwg0A, &GTWG[1][3], &GTWG[3][3]);
+    GTWG[1][3] *= normal;
+    GTWG[3][3] *= normal;
     GTWG[1][2] = GTWG[1][1];
-
-    GTWG[3][0] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg0B),1))) * normal;
-    GTWG[3][1] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg1B),1))) * normal;
-    GTWG[3][3] = sumituphalf_AVX512FP16_16f(_mm256_castps_ph(_mm512_extractf32x8_ps(_mm512_castph_ps(gtwg3B),1))) * normal;
     GTWG[3][2] = GTWG[3][1];
 
     return;
