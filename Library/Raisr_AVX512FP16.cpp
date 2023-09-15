@@ -375,18 +375,22 @@ void GetHashValue_AVX512FP16_16h(_Float16 GTWG[8][4], int passIdx, int32_t *idx)
     const int cmp_le = _CMP_LE_OQ;
     const int cmp_gt = _CMP_GT_OQ;
 
-    __m128h m_a_ph = _mm_setr_ph   (GTWG[0][0], GTWG[1][0], GTWG[2][0], GTWG[3][0],
-                                   GTWG[4][0], GTWG[5][0], GTWG[6][0], GTWG[7][0]);
-    __m128h m_b_ph = _mm_setr_ph   (GTWG[0][1], GTWG[1][1], GTWG[2][1], GTWG[3][1],
-                                   GTWG[4][1], GTWG[5][1], GTWG[6][1], GTWG[7][1]);
-    __m128h m_d_ph = _mm_setr_ph   (GTWG[0][3], GTWG[1][3], GTWG[2][3], GTWG[3][3],
-                                   GTWG[4][3], GTWG[5][3], GTWG[6][3], GTWG[7][3]);
+    __m512h gtwg_perm_ph= _mm512_permutexvar_ph(
+                                    _mm512_set_epi16(   31,27,23,19,15,11, 7, 3,
+                                                        30,26,22,18,14,10, 6, 2,
+                                                        29,25,21,17,13, 9, 5, 1,
+                                                        28,24,20,16,12, 8, 4, 0 ), _mm512_load_ph(GTWG));
+    __m128h m_a_ph = _mm512_castph512_ph128(gtwg_perm_ph);
+    __m128h m_b_ph = _mm_castps_ph( _mm512_extractf32x4_ps( _mm512_castph_ps(gtwg_perm_ph), 1));
+    __m128h m_d_ph = _mm_castps_ph( _mm512_extractf32x4_ps( _mm512_castph_ps(gtwg_perm_ph), 3));
+
     __m128h T_ph = _mm_add_ph(m_a_ph, m_d_ph);
     __m128h D_ph = _mm_sub_ph( _mm_mul_ph( m_a_ph, m_d_ph),
                                 _mm_mul_ph( m_b_ph, m_b_ph));
 
-    __m128h sqr_ph = _mm_sqrt_ph( _mm_sub_ph( _mm_div_ph ( _mm_mul_ph(T_ph, T_ph),
-                                                           _mm_set1_ph(four)), D_ph));
+    // 11 bit accuracy:
+    __m128h sqr_ph = _mm_rcp_ph( _mm_rsqrt_ph( _mm_sub_ph( _mm_div_ph ( _mm_mul_ph(T_ph, T_ph),
+                                                           _mm_set1_ph(four)), D_ph)));
 
     __m128h half_T_ph = _mm_div_ph ( T_ph, _mm_set1_ph(two) );
     __m128h L1_ph = _mm_add_ph( half_T_ph, sqr_ph);
@@ -405,8 +409,10 @@ void GetHashValue_AVX512FP16_16h(_Float16 GTWG[8][4], int passIdx, int32_t *idx)
 
     angle_ph = _mm_add_ph ( angle_ph, _mm_mask_blend_ph( _mm_cmp_ph_mask(angle_ph, zero_ph, _CMP_LT_OQ), zero_ph, _mm_set1_ph(pi)));
 
-    __m128h sqrtL1_ph = _mm_sqrt_ph( L1_ph );
-    __m128h sqrtL2_ph = _mm_sqrt_ph( L2_ph );
+    // fast sqrt with 11 bit accuracy
+    __m128h sqrtL1_ph = _mm_rcp_ph( _mm_rsqrt_ph( L1_ph));
+    __m128h sqrtL2_ph = _mm_rcp_ph( _mm_rsqrt_ph( L2_ph));
+
     __m128h coherence_ph = _mm_div_ph( _mm_sub_ph( sqrtL1_ph, sqrtL2_ph ),
                                         _mm_add_ph( _mm_add_ph(sqrtL1_ph, sqrtL2_ph), _mm_set1_ph(near_zero) ) );
     __m128h strength_ph = L1_ph;

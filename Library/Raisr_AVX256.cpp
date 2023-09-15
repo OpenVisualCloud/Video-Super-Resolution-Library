@@ -415,8 +415,8 @@ void inline GetHashValue_AVX256_32f(float GTWG[8][4], int passIdx, int32_t *idx)
     __m256 D_ps = _mm256_sub_ps( _mm256_mul_ps( m_a_ps, m_d_ps),
                                 _mm256_mul_ps( m_b_ps, m_b_ps));
 
-    __m256 sqr_ps = _mm256_sqrt_ps( _mm256_sub_ps( _mm256_div_ps ( _mm256_mul_ps(T_ps, T_ps),
-                                                                   _mm256_broadcast_ss(&four)), D_ps));
+    __m256 sqr_ps = _mm256_rcp_ps( _mm256_rsqrt_ps( _mm256_sub_ps( _mm256_div_ps ( _mm256_mul_ps(T_ps, T_ps),
+                                                    _mm256_broadcast_ss(&four)), D_ps)));
 
     __m256 half_T_ps = _mm256_div_ps ( T_ps, _mm256_broadcast_ss(&two) );
     __m256 L1_ps = _mm256_add_ps( half_T_ps, sqr_ps);
@@ -436,8 +436,8 @@ void inline GetHashValue_AVX256_32f(float GTWG[8][4], int passIdx, int32_t *idx)
     angle_ps = _mm256_add_ps ( angle_ps, _mm256_blendv_ps( zero_ps, _mm256_broadcast_ss(&pi),
                                     _mm256_cmp_ps(angle_ps, zero_ps, _CMP_LT_OQ) ) );
 
-    __m256 sqrtL1_ps = _mm256_sqrt_ps( L1_ps );
-    __m256 sqrtL2_ps = _mm256_sqrt_ps( L2_ps );
+    __m256 sqrtL1_ps = _mm256_rcp_ps( _mm256_rsqrt_ps( L1_ps ));
+    __m256 sqrtL2_ps = _mm256_rcp_ps( _mm256_rsqrt_ps( L2_ps ));
     __m256 coherence_ps = _mm256_div_ps( _mm256_sub_ps( sqrtL1_ps, sqrtL2_ps ),
                                         _mm256_add_ps( _mm256_add_ps(sqrtL1_ps, sqrtL2_ps), _mm256_broadcast_ss(&near_zero) ) );
     __m256 strength_ps = L1_ps;

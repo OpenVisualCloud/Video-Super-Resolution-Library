@@ -889,6 +889,12 @@ int inline GetHashValue(float *GTWG, int pass)
            coherenceIdx;
 }
 
+__m256i inline modulo_imm( __m256i a, int b) {
+
+    __m256i div_epi32 = _mm256_cvtps_epi32(_mm256_floor_ps(_mm256_mul_ps(_mm256_cvtepi32_ps(a), _mm256_set1_ps(1.0f / b))));
+    return _mm256_sub_epi32(a, _mm256_mullo_epi32(div_epi32, _mm256_set1_epi32(b)));
+}
+
 RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, BlendingMode blendingMode, int threadIdx)
 {
     VideoDataType *inY;
@@ -1064,11 +1070,23 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
             {
                 if (gUsePixelType)
                 {
+#ifdef __AVX512F__
+                    // partone = a % gRatio * gRatio
+                    __m256i gRatio_epi32 = _mm256_set1_epi32(gRatio);
+                    __m256i gPatchMargin_epi32 = _mm256_set1_epi32(gPatchMargin);
+                    __m256i a = _mm256_sub_epi32( _mm256_set1_epi32(r), gPatchMargin_epi32);
+                    __m256i partone = _mm256_mullo_epi32( modulo_imm( a, gRatio), gRatio_epi32);
+                    // parttwo = (b % gRatio)
+                    __m256i b = _mm256_sub_epi32( _mm256_add_epi32(_mm256_set1_epi32(c), _mm256_setr_epi32(0,1,2,3,4,5,6,7)), gPatchMargin_epi32);
+                    __m256i pixelType_epi32 = _mm256_add_epi32( partone, modulo_imm(b, gRatio) );
+                    _mm256_storeu_epi32(pixelType, pixelType_epi32);
+#else
 #pragma unroll(unrollSizePatchBased)
                     for (pix = 0; pix < unrollSizePatchBased; pix++)
                     {
                         pixelType[pix] = ((r - gPatchMargin) % (int)gRatio) * (int)gRatio + ((c + pix - gPatchMargin) % (int)gRatio);
                     }
+#endif
                 }
 
 #pragma unroll(unrollSizePatchBased / 2)
