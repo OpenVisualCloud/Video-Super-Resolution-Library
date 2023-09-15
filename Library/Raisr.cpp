@@ -340,9 +340,8 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
     }
 
     // allocate contiguous memory to hold all filters
-    filterBuffer = new DT[aligned_rows * hashkeySize * pixelTypes + 16];
-    uint64_t Aoffset = (uint64_t)filterBuffer & 0x3f;
-    DT *AFilters = &filterBuffer[16 - (int)(Aoffset / sizeof(DT))];
+    filterBuffer = new (std::align_val_t(64)) DT[aligned_rows * hashkeySize * pixelTypes];
+    DT *AFilters = &filterBuffer[0];
     memset(AFilters, 0, sizeof(DT) * aligned_rows * hashkeySize * pixelTypes);
 
     // DT ==2
@@ -1041,17 +1040,17 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         startRow = startRow < gLoopMargin ? gLoopMargin : startRow;
         endRow = endRow > (rows - gLoopMargin) ? (rows - gLoopMargin) : endRow;
 
-        float GTWG[unrollSizePatchBased][4];
-        int pixelType[unrollSizePatchBased] = {0, 0, 0, 0, 0, 0, 0, 0};
-        int hashValue[unrollSizePatchBased];
-        const float *fbase[unrollSizePatchBased];
-        float pixbuf[unrollSizePatchBased][128] __attribute__((aligned(64)));
+        alignas(64) float GTWG[unrollSizePatchBased][4];
+        alignas(64) int pixelType[unrollSizePatchBased] = {0, 0, 0, 0, 0, 0, 0, 0};
+        alignas(64) int hashValue[unrollSizePatchBased];
+        alignas(64) const float *fbase[unrollSizePatchBased];
+        alignas(64) float pixbuf[unrollSizePatchBased][128] __attribute__((aligned(64)));
         int pix;
         int census = 0;
 #ifdef __AVX512FP16__
-        _Float16 GTWG_fp16[unrollSizePatchBased][4];
-        const _Float16 *fbase_fp16[unrollSizePatchBased];
-        _Float16 pixbuf_fp16[unrollSizePatchBased][128] __attribute__((aligned(64)));
+        alignas(64) _Float16 GTWG_fp16[unrollSizePatchBased][4];
+        alignas(64) const _Float16 *fbase_fp16[unrollSizePatchBased];
+        alignas(64) _Float16 pixbuf_fp16[unrollSizePatchBased][128] __attribute__((aligned(64)));
 #endif
 
         memset(pixbuf, 0, sizeof(float) * unrollSizePatchBased * 128);
@@ -1735,11 +1734,11 @@ RNLERRORTYPE RNLSetRes(VideoDataType *inY, VideoDataType *inCr, VideoDataType *i
             else
                 gIppCtx.segZones[i][threadIdx].inYUpscaled = new Ipp8u[segHeight * cols * BYTES_16BITS];
             if (gAsmType == AVX512_FP16) {
-                gIppCtx.segZones[i][threadIdx].inYUpscaled32f = new float[segHeight * cols / 2];
-                gIppCtx.segZones[i][threadIdx].raisr32f = new float[segHeight * cols / 2];
+                gIppCtx.segZones[i][threadIdx].inYUpscaled32f = new (std::align_val_t(64)) float[segHeight * cols / 2];
+                gIppCtx.segZones[i][threadIdx].raisr32f = new (std::align_val_t(64)) float[segHeight * cols / 2];
             } else {
-                gIppCtx.segZones[i][threadIdx].inYUpscaled32f = new float[segHeight * cols];
-                gIppCtx.segZones[i][threadIdx].raisr32f = new float[segHeight * cols];
+                gIppCtx.segZones[i][threadIdx].inYUpscaled32f = new (std::align_val_t(64)) float[segHeight * cols];
+                gIppCtx.segZones[i][threadIdx].raisr32f = new (std::align_val_t(64)) float[segHeight * cols];
             }
 
             // Filter initialization for Y channel segment
