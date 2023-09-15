@@ -33,7 +33,7 @@ const float sigma = 2.0f;
 const int CTwindowSize = 3;
 const int CTnumberofPixel = CTwindowSize * CTwindowSize - 1;
 const int CTmargin = CTwindowSize >> 1;
-const int gHashingExpand = CTmargin + 1; // Segment is again expanded by CTmargin so that all the rows in the segment can be processed by CTCountOfBitsChanged(). "+1" is to make sure the resize zone is even.
+const int gHashingExpand = CTmargin; // Segment is again expanded by CTmargin so that all the rows in the segment can be processed by CTCountOfBitsChanged(). "+1" is to make sure the resize zone is even.
 static float gRatio;
 static bool gUsePixelType = true;
 static ASMType gAsmType;

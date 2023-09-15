@@ -1535,7 +1535,7 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     }
     gPatchMargin = gPatchSize >> 1;
     gLoopMargin = (gPatchSize >> 1) + 1;
-    gResizeExpand = (gLoopMargin + 2);
+    gResizeExpand = (gLoopMargin);
     unsigned int patchAreaSize = gPatchSize * gPatchSize;
     g64AlinedgPatchAreaSize = ((patchAreaSize + 64 - 1) / 64) * 64;
     configFile.close();
