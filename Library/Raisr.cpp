@@ -273,31 +273,43 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
 
     std::string line;
     // Read filter file
-    std::ifstream filterFile(hashtablePath);
+    std::ifstream filterFile;
+    filterFile.open(hashtablePath, std::ifstream::binary);
     if (!filterFile.is_open())
     {
         std::cout << "[RAISR ERROR] Unable to load model: " << hashtablePath << std::endl;
         return RNLErrorBadParameter;
     }
-    std::getline(filterFile, line);
-    std::istringstream filteriss(line);
-    std::vector<std::string> filterTokens{std::istream_iterator<std::string>{filteriss},
-                                          std::istream_iterator<std::string>{}};
-    unsigned int hashkeySize;
-    if (RNLErrorNone != RNLStoi(&hashkeySize, filterTokens[0].c_str(), hashtablePath))
-    {
+
+    unsigned int hashkeySize = 0, pixelTypes = 0, rows = 0;
+    std::string data_type = "fp32";
+    int type_size = data_type.size();
+    filterFile.seekg(0, filterFile.end);
+    long file_size = filterFile.tellg();
+    filterFile.seekg(0, filterFile.beg);
+    unsigned int weight_type_size = 4;
+
+    filterFile.read(&data_type[0], type_size);
+    if (data_type != "fp32" && data_type != "fp16") {
+        std::cout << "[RAISR ERROR] hashtable corrupted: " << hashtablePath << std::endl;
         return RNLErrorBadParameter;
     }
-    unsigned int pixelTypes;
-    if (RNLErrorNone != RNLStoi(&pixelTypes, filterTokens[1].c_str(), hashtablePath))
-    {
+
+    if (data_type == "fp16") {
+        weight_type_size = 2;
+    }
+
+    filterFile.read(reinterpret_cast<char*>(&hashkeySize), sizeof(unsigned int));
+    filterFile.read(reinterpret_cast<char*>(&pixelTypes), sizeof(unsigned int));
+    filterFile.read(reinterpret_cast<char*>(&rows), sizeof(unsigned int));
+
+    unsigned head_size = data_type.size() + 3 * sizeof(unsigned int);
+
+    if ((file_size - head_size) != (hashkeySize * pixelTypes * rows * weight_type_size)) {
+        std::cout << "[RAISR ERROR] hashtable corrupted: " << hashtablePath << std::endl;
         return RNLErrorBadParameter;
     }
-    unsigned int rows;
-    if (RNLErrorNone != RNLStoi(&rows, filterTokens[2].c_str(), hashtablePath))
-    {
-        return RNLErrorBadParameter;
-    }
+
     int aligned_rows = 16 * (int)((rows + 15) / 16);
 
     if (hashkeySize != gQuantizationAngle * gQuantizationStrength * gQuantizationCoherence)
@@ -333,63 +345,31 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
     DT *AFilters = &filterBuffer[16 - (int)(Aoffset / sizeof(DT))];
     memset(AFilters, 0, sizeof(DT) * aligned_rows * hashkeySize * pixelTypes);
 
+    // DT ==2
     int num = 0;
-    try
-    {
-        // Load hashtable
-        while (getline(filterFile, line))
-        {
-            // too much lines in the file
-            if (num >= (hashkeySize * pixelTypes))
-            {
+    if (sizeof(DT) == weight_type_size) {
+        for (int i = 0 ; i < hashkeySize * pixelTypes; ++i) {
+            DT *currentfilter = &AFilters[i * aligned_rows];
+            filterFile.read(reinterpret_cast<char*>(currentfilter), sizeof(DT) * rows);
+            filterBuckets[i / pixelTypes][i % pixelTypes] = currentfilter;
+        }
+    } else {
+        if (weight_type_size == 4) {
+            float weight = 0.0;
+            for (int i = 0 ; i < hashkeySize * pixelTypes; ++i) {
+                DT *currentfilter = &AFilters[i * aligned_rows];
+                for (int j = 0; j < rows; ++j) {
+                    filterFile.read(reinterpret_cast<char*>(&weight), weight_type_size);
+                    currentfilter[j] = (DT)weight;
+                }
+                filterBuckets[i / pixelTypes][i % pixelTypes] = currentfilter;
+            }
+	 } else {
                 std::cout << "[RAISR ERROR] hashtable corrupted: " << hashtablePath << std::endl;
                 return RNLErrorBadParameter;
-            }
-            int k = 0;
-            std::istringstream new_iss(line);
-            std::vector<std::string> new_tokens{std::istream_iterator<std::string>{new_iss},
-                                                std::istream_iterator<std::string>{}};
-
-            if (new_tokens.size() != gPatchSize * gPatchSize) {
-                std::cout << "[RAISR ERROR] hashtable corrupted: " << hashtablePath << std::endl;
-                return RNLErrorBadParameter;
-            }
-
-            DT *currentfilter = &AFilters[num * aligned_rows];
-
-            for (const auto &value : new_tokens)
-            {
-                currentfilter[k] = (DT) std::stod(value.c_str());
-                k++;
-            }
-
-            // not enough value or too much values
-            if (k < rows || k > rows)
-            {
-                std::cout << "[RAISR ERROR] hashtable corrupted: " << hashtablePath << std::endl;
-                return RNLErrorBadParameter;
-            }
-            filterBuckets[num / pixelTypes][num % pixelTypes] = currentfilter;
-            num++;
         }
     }
-    catch (const std::invalid_argument &)
-    {
-        std::cout << "[RAISR ERROR] hashtable corrupted: " << hashtablePath << std::endl;
-        return RNLErrorBadParameter;
-    }
-    catch (const std::out_of_range &)
-    {
-        std::cout << "[RAISR ERROR] hashtable corrupted: " << hashtablePath << std::endl;
-        return RNLErrorBadParameter;
-    }
 
-    // not enough lines in the file
-    if (num < (hashkeySize * pixelTypes))
-    {
-        std::cout << "[RAISR ERROR] hashtable corrupted: " << hashtablePath << std::endl;
-        return RNLErrorBadParameter;
-    }
     filterFile.close();
 
     // Read QStr file
