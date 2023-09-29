@@ -571,5 +571,6 @@ void GetHashValue_AVX512FP16_16h_32Elements(_Float16 GTWG[3][32], int passIdx, i
     idx_epi16 = _mm512_add_epi16((coherenceIdx_epi16),
                                 _mm512_add_epi16(idx_epi16, _mm512_mullo_epi16((strengthIdx_epi16), gQuantizationCoherence_epi16)));
 
-    _mm512_storeu_si512((__m512i *)idx, idx_epi16);
+    _mm512_storeu_si512((__m512i *)idx, _mm512_cvtepi16_epi32(_mm512_castsi512_si256(idx_epi16)));
+    _mm512_storeu_si512((__m512i *)(idx+16), _mm512_cvtepi16_epi32(_mm512_extracti32x8_epi32(idx_epi16,1)));
 }
