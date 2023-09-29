@@ -895,6 +895,12 @@ __m256i inline modulo_imm( __m256i a, int b) {
     return _mm256_sub_epi32(a, _mm256_mullo_epi32(div_epi32, _mm256_set1_epi32(b)));
 }
 
+void inline write_pixeltype(int c, __m256i gPatchMargin_epi32, __m256i partone, int* out) {
+                        __m256i b = _mm256_sub_epi32( _mm256_add_epi32(_mm256_set1_epi32(c), _mm256_setr_epi32(0,1,2,3,4,5,6,7)), gPatchMargin_epi32);
+                        __m256i pixelType_epi32 = _mm256_add_epi32( partone, modulo_imm(b, gRatio) );
+                        _mm256_storeu_epi32(out, pixelType_epi32);
+}
+
 RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, BlendingMode blendingMode, int threadIdx)
 {
     VideoDataType *inY;
@@ -1047,14 +1053,14 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         endRow = endRow > (rows - gLoopMargin) ? (rows - gLoopMargin) : endRow;
 
         alignas(64) float GTWG[unrollSizePatchBased][4];
-        alignas(64) int pixelType[unrollSizePatchBased] = {0, 0, 0, 0, 0, 0, 0, 0};
+        alignas(64) int pixelType[unrollSizePatchBased]; //= {0, 0, 0, 0, 0, 0, 0, 0};
         alignas(64) int hashValue[unrollSizePatchBased];
         alignas(64) const float *fbase[unrollSizePatchBased];
         alignas(64) float pixbuf[unrollSizePatchBased][128] __attribute__((aligned(64)));
         int pix;
         int census = 0;
 #ifdef __AVX512FP16__
-        alignas(64) _Float16 GTWG_fp16[unrollSizePatchBased][4];
+        alignas(64) _Float16 GTWG_fp16[3][32];
         alignas(64) const _Float16 *fbase_fp16[unrollSizePatchBased];
         alignas(64) _Float16 pixbuf_fp16[unrollSizePatchBased][128] __attribute__((aligned(64)));
 #endif
@@ -1066,31 +1072,40 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
             // update coordinate: convert r to coordinate in seg buffer pSeg32f
             // NOTE: use rOffset with pSeg32f
             int rOffset = r - gIppCtx.segZones[passIdx][threadIdx].scaleStartRow;
-            for (int c = gLoopMargin; c + unrollSizePatchBased <= cols - gLoopMargin; c += unrollSizePatchBased)
+            int loopItr = unrollSizePatchBased;
+            //for (int c = gLoopMargin; c + loopItr <= cols - gLoopMargin; c += loopItr)
+            int c = gLoopMargin;
+            while (c + loopItr <= cols - gLoopMargin)
             {
-                if (gUsePixelType)
+               if (gUsePixelType)
                 {
 #ifdef __AVX512F__
-                    // partone = a % gRatio * gRatio
-                    __m256i gRatio_epi32 = _mm256_set1_epi32(gRatio);
-                    __m256i gPatchMargin_epi32 = _mm256_set1_epi32(gPatchMargin);
-                    __m256i a = _mm256_sub_epi32( _mm256_set1_epi32(r), gPatchMargin_epi32);
-                    __m256i partone = _mm256_mullo_epi32( modulo_imm( a, gRatio), gRatio_epi32);
-                    // parttwo = (b % gRatio)
-                    __m256i b = _mm256_sub_epi32( _mm256_add_epi32(_mm256_set1_epi32(c), _mm256_setr_epi32(0,1,2,3,4,5,6,7)), gPatchMargin_epi32);
-                    __m256i pixelType_epi32 = _mm256_add_epi32( partone, modulo_imm(b, gRatio) );
-                    _mm256_storeu_epi32(pixelType, pixelType_epi32);
-#else
-#pragma unroll(unrollSizePatchBased)
-                    for (pix = 0; pix < unrollSizePatchBased; pix++)
-                    {
-                        pixelType[pix] = ((r - gPatchMargin) % (int)gRatio) * (int)gRatio + ((c + pix - gPatchMargin) % (int)gRatio);
+                    __m256i pixelType_epi32;
+                    if (loopItr == 8 || loopItr == 32) {
+                        // partone = a % gRatio * gRatio
+                        __m256i gRatio_epi32 = _mm256_set1_epi32(gRatio);
+                        __m256i gPatchMargin_epi32 = _mm256_set1_epi32(gPatchMargin);
+                        __m256i a = _mm256_sub_epi32( _mm256_set1_epi32(r), gPatchMargin_epi32);
+                        __m256i partone = _mm256_mullo_epi32( modulo_imm( a, gRatio), gRatio_epi32);
+                        // parttwo = (b % gRatio)
+                        write_pixeltype(c, gPatchMargin_epi32, partone, pixelType);
+                        if (loopItr == 32) {
+                            write_pixeltype(c+8, gPatchMargin_epi32, partone, pixelType+8);
+                            write_pixeltype(c+16, gPatchMargin_epi32, partone, pixelType+16);
+                            write_pixeltype(c+24, gPatchMargin_epi32, partone, pixelType+24);
+                        } 
                     }
+                    else 
 #endif
+                    {
+                        for (pix = 0; pix < loopItr; pix++)
+                        {
+                            pixelType[pix] = ((r - gPatchMargin) % (int)gRatio) * (int)gRatio + ((c + pix - gPatchMargin) % (int)gRatio);
+                        }
+                    }
                 }
 
-#pragma unroll(unrollSizePatchBased / 2)
-                for (pix = 0; pix < unrollSizePatchBased / 2; pix++)
+                for (pix = 0; pix < loopItr / 2; pix++)
                 {
                     if (gAsmType == AVX2)
                         computeGTWG_Segment_AVX256_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
@@ -1100,8 +1115,8 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
 #endif
 #ifdef __AVX512FP16__
                     else if (gAsmType == AVX512_FP16)
-                        if (pix <= 1) {
-                            computeGTWG_Segment_AVX512FP16_16f((_Float16 *)pSeg32f, rows, cols, rOffset, c + 4 * pix, &GTWG_fp16[4 * pix], &pixbuf_fp16[4 * pix][0], &pixbuf_fp16[4 * pix + 1][0], &pixbuf_fp16[4 * pix + 2][0], &pixbuf_fp16[4 * pix + 3][0]);
+                        if (pix < loopItr / 4) {
+                            computeGTWG_Segment_AVX512FP16_16f((_Float16 *)pSeg32f, rows, cols, rOffset, c + 4 * pix, GTWG_fp16, pix, &pixbuf_fp16[4 * pix][0], &pixbuf_fp16[4 * pix + 1][0], &pixbuf_fp16[4 * pix + 2][0], &pixbuf_fp16[4 * pix + 3][0]);
                         } else { break; }
  #endif
                     else
@@ -1112,12 +1127,17 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                 }
 #ifdef __AVX512FP16__
                 if (gAsmType == AVX512_FP16) {
-                    GetHashValue_AVX512FP16_16h(GTWG_fp16, passIdx, hashValue);
+                    if (loopItr == 8) {
+                        GetHashValue_AVX512FP16_16h_8Elements(GTWG_fp16, passIdx, hashValue);
+                    }  
+                    else if (loopItr == 32) { 
+                        GetHashValue_AVX512FP16_16h_32Elements(GTWG_fp16, passIdx, hashValue);
+                    }
                 } else
 #endif
-                    GetHashValue_AVX256_32f(GTWG, passIdx, hashValue);
+                    GetHashValue_AVX256_32f(GTWG, passIdx, hashValue); // 8 elements
 
-                for (pix = 0; pix < unrollSizePatchBased; pix++)
+                for (pix = 0; pix < loopItr; pix++)
                 {
 #ifdef __AVX512FP16__
                     if (passIdx == 0 && gAsmType == AVX512_FP16)
@@ -1132,8 +1152,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                         fbase[pix] = gFilterBuckets2[hashValue[pix]][pixelType[pix]];
                 }
 
-#pragma unroll(unrollSizePatchBased)
-                for (pix = 0; pix < unrollSizePatchBased; pix++)
+                for (pix = 0; pix < loopItr; pix++)
                 {
                     if (likely(c + pix < cols - gLoopMargin))
                     {
@@ -1216,6 +1235,12 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                         }
                     }
                 }
+
+                // corner case: we reached near edge of the image
+                if ((loopItr > 8) && (c + 2 * unrollSizePatchBased > cols - gLoopMargin)) {
+                    loopItr = 8;
+                }
+                c += loopItr;
             }
             // Copy right border pixels for this row and left border pixels for next row
             if (step == outY->step) {
@@ -1457,6 +1482,7 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     if ( gAsmType == AVX512_FP16) {
         if (machine_supports_feature(gMachineVendorType, AVX512_FP16)) {
             std::cout << "ASM Type: AVX512FP16\n";
+            unrollSizePatchBased = 32; // for FP16, increase unrollSizePatchBased to 32 to use full 512bit registers
         } else {
             std::cout << "ASM Type: AVX512FP16 requested, but machine does not support it.  Changing to AVX512\n";
             gAsmType = AVX512;

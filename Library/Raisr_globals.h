@@ -45,7 +45,7 @@ static unsigned int gBitDepth;
 // This also results in additional memory requirements
 const int unrollSizeImageBased = 4;
 // unrollSizePatchBased should be at least 2
-const int unrollSizePatchBased = 8;
+int unrollSizePatchBased = 8;
 
 /************************************************************
  *   preprocessor directives
