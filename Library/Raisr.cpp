@@ -1052,7 +1052,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         startRow = startRow < gLoopMargin ? gLoopMargin : startRow;
         endRow = endRow > (rows - gLoopMargin) ? (rows - gLoopMargin) : endRow;
 
-        alignas(64) float GTWG[unrollSizePatchBased][4];
+        alignas(64) float GTWG[3][16];
         alignas(64) int pixelType[unrollSizePatchBased]; //= {0, 0, 0, 0, 0, 0, 0, 0};
         alignas(64) int hashValue[unrollSizePatchBased];
         alignas(64) const float *fbase[unrollSizePatchBased];
@@ -1081,7 +1081,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                 {
 #ifdef __AVX512F__
                     __m256i pixelType_epi32;
-                    if (loopItr == 8 || loopItr == 32) {
+                    if (loopItr == 8 || loopItr == 16 || loopItr == 32) {
                         // partone = a % gRatio * gRatio
                         __m256i gRatio_epi32 = _mm256_set1_epi32(gRatio);
                         __m256i gPatchMargin_epi32 = _mm256_set1_epi32(gPatchMargin);
@@ -1089,8 +1089,10 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                         __m256i partone = _mm256_mullo_epi32( modulo_imm( a, gRatio), gRatio_epi32);
                         // parttwo = (b % gRatio)
                         write_pixeltype(c, gPatchMargin_epi32, partone, pixelType);
-                        if (loopItr == 32) {
+                        if (loopItr >= 16) {
                             write_pixeltype(c+8, gPatchMargin_epi32, partone, pixelType+8);
+                        }
+                        if (loopItr == 32) {
                             write_pixeltype(c+16, gPatchMargin_epi32, partone, pixelType+16);
                             write_pixeltype(c+24, gPatchMargin_epi32, partone, pixelType+24);
                         } 
@@ -1108,10 +1110,10 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                 for (pix = 0; pix < loopItr / 2; pix++)
                 {
                     if (gAsmType == AVX2)
-                        computeGTWG_Segment_AVX256_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
+                        computeGTWG_Segment_AVX256_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, GTWG, pix, &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
 #ifdef __AVX512F__
                     else if (gAsmType == AVX512)
-                        computeGTWG_Segment_AVX512_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, &GTWG[2 * pix], &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
+                        computeGTWG_Segment_AVX512_32f(pSeg32f, rows, cols, rOffset, c + 2 * pix, GTWG, pix, &pixbuf[2 * pix][0], &pixbuf[2 * pix + 1][0]);
 #endif
 #ifdef __AVX512FP16__
                     else if (gAsmType == AVX512_FP16)
@@ -1135,7 +1137,14 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                     }
                 } else
 #endif
-                    GetHashValue_AVX256_32f(GTWG, passIdx, hashValue); // 8 elements
+                {
+                    if (loopItr == 8) {
+                        GetHashValue_AVX256_32f_8Elements(GTWG, passIdx, hashValue); // 8 elements
+                    }
+                    else if (loopItr == 16) {
+                        GetHashValue_AVX512_32f_16Elements(GTWG, passIdx, hashValue); // 16 elements 
+                    }
+                }
 
                 for (pix = 0; pix < loopItr; pix++)
                 {
@@ -1493,6 +1502,7 @@ RNLERRORTYPE RNLInit(std::string &modelPath,
     if ( gAsmType == AVX512) {
         if (machine_supports_feature(gMachineVendorType, AVX512)) {
             std::cout << "ASM Type: AVX512\n";
+            unrollSizePatchBased = 16; // for F32AVX512, increase unrollSizePatchBased to 16 to use full 512bit registers
         } else {
             std::cout << "ASM Type: AVX512 requested, but machine does not support it.  Changing to AVX2\n";
             gAsmType = AVX2;

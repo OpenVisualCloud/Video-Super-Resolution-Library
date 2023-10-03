@@ -246,9 +246,10 @@ inline __m256 GetGTWG_AVX256(__m256 acc, __m256 a, __m256 w, __m256 b)
     return _mm256_fmadd_ps(_mm256_mul_ps(a, w), b, acc);
 }
 
-void inline computeGTWG_Segment_AVX256_32f(const float *img, const int nrows, const int ncols, const int r, const int col, float GTWG[][4], float *buf1, float *buf2)
+void inline computeGTWG_Segment_AVX256_32f(const float *img, const int nrows, const int ncols, const int r, const int col, float GTWG[3][16], int pix, float *buf1, float *buf2)
 {
     // offset is the starting position(top left) of the block which centered by (r, c)
+    int gtwgIdx = pix *2;
     int offset = (r - gLoopMargin) * ncols + col - gLoopMargin;
     const float *p1 = img + offset;
 
@@ -324,15 +325,13 @@ void inline computeGTWG_Segment_AVX256_32f(const float *img, const int nrows, co
         b2 = c2;
     }
 
-    GTWG[0][0] = sumitup_ps_256(_mm256_add_ps(gtwg0A1, gtwg0A2));
-    GTWG[0][1] = sumitup_ps_256(_mm256_add_ps(gtwg1A1, gtwg1A2));
-    GTWG[0][3] = sumitup_ps_256(_mm256_add_ps(gtwg3A1, gtwg3A2));
-    GTWG[0][2] = GTWG[0][1];
+    GTWG[0][gtwgIdx] = sumitup_ps_256(_mm256_add_ps(gtwg0A1, gtwg0A2));
+    GTWG[1][gtwgIdx] = sumitup_ps_256(_mm256_add_ps(gtwg1A1, gtwg1A2));
+    GTWG[2][gtwgIdx] = sumitup_ps_256(_mm256_add_ps(gtwg3A1, gtwg3A2));
 
-    GTWG[1][0] = sumitup_ps_256(_mm256_add_ps(gtwg0B1, gtwg0B2));
-    GTWG[1][1] = sumitup_ps_256(_mm256_add_ps(gtwg1B1, gtwg1B2));
-    GTWG[1][3] = sumitup_ps_256(_mm256_add_ps(gtwg3B1, gtwg3B2));
-    GTWG[1][2] = GTWG[1][1];
+    GTWG[0][gtwgIdx+1] = sumitup_ps_256(_mm256_add_ps(gtwg0B1, gtwg0B2));
+    GTWG[1][gtwgIdx+1] = sumitup_ps_256(_mm256_add_ps(gtwg1B1, gtwg1B2));
+    GTWG[2][gtwgIdx+1] = sumitup_ps_256(_mm256_add_ps(gtwg3B1, gtwg3B2));
 
     return;
 }
@@ -391,12 +390,13 @@ inline __m256 atan2Approximation_AVX256_32f(__m256 y_ps, __m256 x_ps)
     return _mm256_blendv_ps( angle_ps, neg_angle_ps, _mm256_cmp_ps(y_ps, zero_ps, _CMP_LT_OQ));
 }
 
-void inline GetHashValue_AVX256_32f(float GTWG[8][4], int passIdx, int32_t *idx) {
+void inline GetHashValue_AVX256_32f_8Elements(float GTWG[3][16], int passIdx, int32_t *idx) {
     const float one = 1.0;
     const float two = 2.0;
     const float four = 4.0;
     const float pi = PI;
     const float near_zero = 0.00000000000000001;
+
     const __m256 zero_ps = _mm256_setzero_ps();
     const __m256i zero_epi32 = _mm256_setzero_si256();
     const __m256i one_epi32 = _mm256_set1_epi32(1);
@@ -405,12 +405,10 @@ void inline GetHashValue_AVX256_32f(float GTWG[8][4], int passIdx, int32_t *idx)
     const int cmp_le = _CMP_LE_OQ;
     const int cmp_gt = _CMP_GT_OQ;
 
-    __m256 m_a_ps = _mm256_setr_ps (GTWG[0][0], GTWG[1][0], GTWG[2][0], GTWG[3][0],
-                                   GTWG[4][0], GTWG[5][0], GTWG[6][0], GTWG[7][0]);
-    __m256 m_b_ps = _mm256_setr_ps (GTWG[0][1], GTWG[1][1], GTWG[2][1], GTWG[3][1],
-                                   GTWG[4][1], GTWG[5][1], GTWG[6][1], GTWG[7][1]);
-    __m256 m_d_ps = _mm256_setr_ps (GTWG[0][3], GTWG[1][3], GTWG[2][3], GTWG[3][3],
-                                   GTWG[4][3], GTWG[5][3], GTWG[6][3], GTWG[7][3]);
+    __m256 m_a_ps = _mm256_load_ps( GTWG[0]);
+    __m256 m_b_ps = _mm256_load_ps( GTWG[1]);
+    __m256 m_d_ps = _mm256_load_ps( GTWG[2]);
+
     __m256 T_ps = _mm256_add_ps(m_a_ps, m_d_ps);
     __m256 D_ps = _mm256_sub_ps( _mm256_mul_ps( m_a_ps, m_d_ps),
                                 _mm256_mul_ps( m_b_ps, m_b_ps));

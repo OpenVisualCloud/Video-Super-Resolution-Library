@@ -7,6 +7,7 @@
 #pragma once
 #include <immintrin.h>
 
-void inline computeGTWG_Segment_AVX512_32f(const float *img, const int nrows, const int ncols, const int r, const int col, float GTWG[][4], float *buf1, float *buf2);
-int inline CTRandomness_AVX512_32f(float *inYUpscaled32f, int cols, int r, int c, int pix);
-float inline DotProdPatch_AVX512_32f(const float *buf, const float *filter);
+void computeGTWG_Segment_AVX512_32f(const float *img, const int nrows, const int ncols, const int r, const int col, float GTWG[3][16], int pix, float *buf1, float *buf2);
+int CTRandomness_AVX512_32f(float *inYUpscaled32f, int cols, int r, int c, int pix);
+float DotProdPatch_AVX512_32f(const float *buf, const float *filter);
+void GetHashValue_AVX512_32f_16Elements(float GTWG[3][16], int passIdx, int32_t *idx);

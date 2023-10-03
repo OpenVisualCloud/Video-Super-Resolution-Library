@@ -383,9 +383,9 @@ void GetHashValue_AVX512FP16_16h_8Elements(_Float16 GTWG[3][32], int passIdx, in
     const int cmp_le = _CMP_LE_OQ;
     const int cmp_gt = _CMP_GT_OQ;
 
-    __m128h m_a_ph = _mm_load_ph(&GTWG[0]);
-    __m128h m_b_ph = _mm_load_ph(&GTWG[1]);
-    __m128h m_d_ph = _mm_load_ph(&GTWG[2]);
+    __m128h m_a_ph = _mm_load_ph(GTWG[0]);
+    __m128h m_b_ph = _mm_load_ph(GTWG[1]);
+    __m128h m_d_ph = _mm_load_ph(GTWG[2]);
 
     __m128h T_ph = _mm_add_ph(m_a_ph, m_d_ph);
     __m128h D_ph = _mm_sub_ph( _mm_mul_ph( m_a_ph, m_d_ph),

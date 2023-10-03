@@ -9,13 +9,14 @@
 #include "Raisr_AVX256.h"
 #include <immintrin.h>
 #include <popcntintrin.h>
+#include <cmath>
 
 inline __mmask8 compare3x3_ps_AVX512(__m256 a, __m256 b)
 {
     return _mm256_cmp_ps_mask(a, b, _CMP_LT_OS);
 }
 
-int inline CTRandomness_AVX512_32f(float *inYUpscaled32f, int cols, int r, int c, int pix)
+int CTRandomness_AVX512_32f(float *inYUpscaled32f, int cols, int r, int c, int pix)
 {
     int census_count = 0;
 
@@ -65,9 +66,10 @@ inline __m512 GetGTWG_AVX512(__m512 acc, __m512 a, __m512 w, __m512 b)
     return _mm512_fmadd_ps(_mm512_mul_ps(a, w), b, acc);
 }
 
-void inline computeGTWG_Segment_AVX512_32f(const float *img, const int nrows, const int ncols, const int r, const int col, float GTWG[][4], float *buf1, float *buf2)
+void computeGTWG_Segment_AVX512_32f(const float *img, const int nrows, const int ncols, const int r, const int col, float GTWG[3][16], int pix, float *buf1, float *buf2)
 {
     // offset is the starting position(top left) of the block which centered by (r, c)
+    int gtwgIdx = pix * 2;
     int offset = (r - gLoopMargin) * ncols + col - gLoopMargin;
     const float *p1 = img + offset;
 
@@ -116,21 +118,20 @@ void inline computeGTWG_Segment_AVX512_32f(const float *img, const int nrows, co
         a = b;
         b = c;
     }
-    GTWG[0][0] = sumitup_ps_512(gtwg0A);
-    GTWG[0][1] = sumitup_ps_512(gtwg1A);
-    GTWG[0][3] = sumitup_ps_512(gtwg3A);
-    GTWG[0][2] = GTWG[0][1];
 
-    GTWG[1][0] = sumitup_ps_512(gtwg0B);
-    GTWG[1][1] = sumitup_ps_512(gtwg1B);
-    GTWG[1][3] = sumitup_ps_512(gtwg3B);
-    GTWG[1][2] = GTWG[1][1];
+    GTWG[0][gtwgIdx] = sumitup_ps_512(gtwg0A);
+    GTWG[1][gtwgIdx] = sumitup_ps_512(gtwg1A);
+    GTWG[2][gtwgIdx] = sumitup_ps_512(gtwg3A);
+
+    GTWG[0][gtwgIdx+1] = sumitup_ps_512(gtwg0B);
+    GTWG[1][gtwgIdx+1] = sumitup_ps_512(gtwg1B);
+    GTWG[2][gtwgIdx+1] = sumitup_ps_512(gtwg3B);
 
     return;
 }
 
 // AVX512 version: for now, gPatchSize must be <= 16 because we can work with up to 16 float32s in one AVX512 register.
-float inline DotProdPatch_AVX512_32f(const float *buf, const float *filter)
+float DotProdPatch_AVX512_32f(const float *buf, const float *filter)
 {
     __m512 a_ps = _mm512_load_ps(buf);
     __m512 b_ps = _mm512_load_ps(filter);
@@ -146,3 +147,119 @@ float inline DotProdPatch_AVX512_32f(const float *buf, const float *filter)
     // sumitup adds all 16 float values in sum(zmm) and returns a single float value
     return sumitup_ps_512(sum);
 }
+
+inline __m512 atan2Approximation_AVX512_32f_16Elements(__m512 y_ps, __m512 x_ps)
+{
+    const float ONEQTR_PI = M_PI / 4.0;
+    const float THRQTR_PI = 3.0 * M_PI / 4.0;
+    const __m512 zero_ps = _mm512_set1_ps(0.0);
+    const __m512 oneqtr_pi_ps = _mm512_set1_ps(ONEQTR_PI);
+    const __m512 thrqtr_pi_ps = _mm512_set1_ps(THRQTR_PI);
+
+    __m512 abs_y_ps = _mm512_add_ps( _mm512_abs_ph(y_ps), _mm512_set1_ps(1e-10f)); 
+
+    __m512 r_cond1_ps = _mm512_div_ps( _mm512_add_ps(x_ps, abs_y_ps), _mm512_sub_ps(abs_y_ps, x_ps));
+    __m512 r_cond2_ps = _mm512_div_ps( _mm512_sub_ps(x_ps, abs_y_ps), _mm512_add_ps(x_ps, abs_y_ps));
+    __mmask16 r_cmp_m8 =  _mm512_cmp_ps_mask(x_ps, zero_ps, _CMP_LT_OQ);
+    __m512 r_ps = _mm512_mask_blend_ps( r_cmp_m8, r_cond2_ps, r_cond1_ps);
+    __m512 angle_ps = _mm512_mask_blend_ps( r_cmp_m8, oneqtr_pi_ps, thrqtr_pi_ps);
+
+    angle_ps = _mm512_fmadd_ps(_mm512_fmadd_ps(_mm512_mul_ph(_mm512_set1_ps(0.1963f), r_ps),
+                                                                                    r_ps, _mm512_set1_ps(-0.9817f)),
+                                                                                    r_ps, angle_ps);
+
+    __m512 neg_angle_ps = _mm512_mul_ps(_mm512_set1_ps(-1), angle_ps);
+    return _mm512_mask_blend_ps(  _mm512_cmp_ps_mask(y_ps, zero_ps, _CMP_LT_OQ), angle_ps, neg_angle_ps );
+}
+
+void GetHashValue_AVX512_32f_16Elements(float GTWG[3][16], int passIdx, int32_t *idx) {
+    const float one = 1.0;
+    const float two = 2.0;
+    const float four = 4.0;
+    const float pi = PI;
+    const float near_zero = 0.00000000000000001;
+
+    const __m512 zero_ps = _mm512_setzero_ps();
+    const __m512 one_ps = _mm512_set1_ps(1);
+    const __m512i zero_epi32 = _mm512_setzero_si512();
+    const __m512i one_epi32 = _mm512_set1_epi32(1);
+    const __m512i two_epi32 = _mm512_set1_epi32(2);
+
+    const int cmp_le = _CMP_LE_OQ;
+    const int cmp_gt = _CMP_GT_OQ;
+
+    __m512 m_a_ps = _mm512_load_ph( GTWG[0]);
+    __m512 m_b_ps = _mm512_load_ph( GTWG[1]);
+    __m512 m_d_ps = _mm512_load_ph( GTWG[2]);
+
+    __m512 T_ps = _mm512_add_ps(m_a_ps, m_d_ps);
+    __m512 D_ps = _mm512_sub_ps( _mm512_mul_ps( m_a_ps, m_d_ps),
+                                _mm512_mul_ps( m_b_ps, m_b_ps));
+
+    // 11 bit accuracy: fast sqr root
+    __m512 sqr_ps = _mm512_rcp14_ps( _mm512_rsqrt14_ps( _mm512_sub_ps( _mm512_div_ps ( _mm512_mul_ps(T_ps, T_ps),
+                                                    _mm512_set1_ps(four)), D_ps)));
+
+    __m512 half_T_ps = _mm512_div_ps ( T_ps, _mm512_set1_ps(two) );
+    __m512 L1_ps = _mm512_add_ps( half_T_ps, sqr_ps);
+    __m512 L2_ps = _mm512_sub_ps( half_T_ps, sqr_ps);
+
+    __m512 angle_ps = zero_ps;
+
+    __m512 blend_ps = _mm512_mask_blend_ps( _mm512_cmp_ps_mask(m_b_ps, zero_ps, _CMP_NEQ_OQ),
+                                            one_ps, _mm512_sub_ps(L1_ps, m_d_ps));
+
+#ifdef USE_ATAN2_APPROX
+    angle_ps = atan2Approximation_AVX512_32f_16Elements( m_b_ps, blend_ps);
+#else
+    angle_ps = _mm512_atan2_ps( m_b_ps, blend_ps);
+#endif
+
+    angle_ps = _mm512_add_ps ( angle_ps, _mm512_mask_blend_ps( _mm512_cmp_ps_mask(angle_ps, zero_ps, _CMP_LT_OQ), zero_ps, _mm512_set1_ps(pi)));
+
+    // fast sqrt with 11 bit accuracy
+    __m512 sqrtL1_ps = _mm512_rcp14_ps( _mm512_rsqrt14_ps( L1_ps ));
+    __m512 sqrtL2_ps = _mm512_rcp14_ps( _mm512_rsqrt14_ps( L2_ps ));
+
+    __m512 coherence_ps = _mm512_div_ps( _mm512_sub_ps( sqrtL1_ps, sqrtL2_ps ),
+                                        _mm512_add_ps( _mm512_add_ps(sqrtL1_ps, sqrtL2_ps), _mm512_set1_ps(near_zero) ) );
+    __m512 strength_ps = L1_ps;
+
+    __m512i angleIdx_epi32 = _mm512_cvtps_epi32( _mm512_floor_ps(_mm512_mul_ps (angle_ps, _mm512_set1_ps(gQAngle))));
+    __m512i quantAngle_lessone_epi32 = _mm512_sub_epi32(_mm512_set1_epi32(gQuantizationAngle), one_epi32);
+    angleIdx_epi32 = _mm512_mask_blend_epi32( _mm512_cmp_epi32_mask( angleIdx_epi32, quantAngle_lessone_epi32, _MM_CMPINT_GT),
+                                            _mm512_mask_blend_epi32(_mm512_cmp_epi32_mask( angleIdx_epi32, zero_epi32, _MM_CMPINT_LT),
+                                                                                        angleIdx_epi32,
+                                                                                        zero_epi32),
+                                            quantAngle_lessone_epi32);
+
+
+   // AFAIK, today QStr & QCoh are vectors of size 2.  I think searchsorted can return an index of 0,1, or 2
+    float *gQStr_data, *gQCoh_data;
+    if (passIdx == 0) gQStr_data = gQStr.data(); else gQStr_data = gQStr2.data();
+    if (passIdx == 0) gQCoh_data = gQCoh.data(); else gQCoh_data = gQCoh2.data();
+    __m512 gQStr1_ps = _mm512_set1_ps(gQStr_data[0]);
+    __m512 gQStr2_ps = _mm512_set1_ps(gQStr_data[1]);
+    __m512 gQCoh1_ps = _mm512_set1_ps(gQCoh_data[0]);
+    __m512 gQCoh2_ps = _mm512_set1_ps(gQCoh_data[1]);
+
+    __m512i strengthIdx_epi32 = _mm512_mask_blend_epi32(_mm512_cmp_ph_mask(gQStr1_ps, strength_ps, _MM_CMPINT_LE),
+                                                                     zero_epi32,
+                                                                     _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQStr2_ps, strength_ps, _MM_CMPINT_LE),
+                                                                                          two_epi32,
+                                                                                          one_epi32));
+    __m512i coherenceIdx_epi32 = _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQCoh1_ps, coherence_ps, _MM_CMPINT_LE),
+                                                                     zero_epi32,
+                                                                     _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQCoh2_ps, coherence_ps, _MM_CMPINT_LE),
+                                                                                          two_epi32,
+                                                                                          one_epi32));
+
+   const __m512i gQuantizationCoherence_epi32 = _mm512_set1_epi32(gQuantizationCoherence);
+    __m512i idx_epi32 = _mm512_mullo_epi32(gQuantizationCoherence_epi32,
+                                            _mm512_mullo_epi32( (angleIdx_epi32), _mm512_set1_epi32(gQuantizationStrength)));
+    idx_epi32 = _mm512_add_epi32((coherenceIdx_epi32),
+                                _mm512_add_epi32(idx_epi32, _mm512_mullo_epi32((strengthIdx_epi32), gQuantizationCoherence_epi32)));
+
+    _mm512_storeu_si512((__m512i *)idx, idx_epi32);
+}
+
