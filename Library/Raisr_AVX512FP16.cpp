@@ -150,6 +150,7 @@ void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, co
         // process patchSize rows
         // load next row
         p1 += ncols;
+
         __m512h c = _mm512_zextph256_ph512(_mm256_loadu_ph(p1));
         c = _mm512_castps_ph(_mm512_insertf32x8(_mm512_castph_ps(c), _mm256_castph_ps(_mm512_castph512_ph256(c)), 1));  // duplicate high & low to compute GTWG for 2 pixels
         __m512h w = _mm512_loadu_ph(gGaussian2DOriginal_fp16_doubled_w1w3[i]); // pixels 1,3
@@ -158,14 +159,15 @@ void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, co
         const __m512h gyi = GetGy_AVX512FP16(b);
 
         gtwg0A = GetGTWG_AVX512FP16(gtwg0A, gxi, w, gxi);
-        gtwg1A = GetGTWG_AVX512FP16(gtwg1A, gxi, w, gyi);
-        gtwg3A = GetGTWG_AVX512FP16(gtwg3A, gyi, w, gyi);
-
+//        gtwg1A = GetGTWG_AVX512FP16(gtwg1A, gxi, w, gyi);
+//        gtwg3A = GetGTWG_AVX512FP16(gtwg3A, gyi, w, gyi);
+/*
         w = shiftR_AVX512FP16(w); // pixels 2,4
 
         gtwg0B = GetGTWG_AVX512FP16(gtwg0B, gxi, w, gxi);
         gtwg1B = GetGTWG_AVX512FP16(gtwg1B, gxi, w, gyi);
         gtwg3B = GetGTWG_AVX512FP16(gtwg3B, gyi, w, gyi);
+*/
 
         _mm256_mask_storeu_epi16(buf1 + gPatchSize * i - 1, 0x0ffe,_mm256_castph_si256(_mm512_castph512_ph256(b)));
         _mm256_mask_storeu_epi16(buf2 + gPatchSize * i - 2, 0x1ffc,_mm256_castph_si256(_mm512_castph512_ph256(b)));
@@ -180,8 +182,14 @@ void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, co
     int gtwgIdxB = gtwgIdx+2;
     sumitup2lane_AVX512FP16_16f(gtwg0A, &GTWG[0][gtwgIdxA], &GTWG[0][gtwgIdxB]);
     GTWG[0][gtwgIdxA] *= normal;
+    GTWG[1][gtwgIdxA] = GTWG[0][gtwgIdxA];
+    GTWG[2][gtwgIdxA] = GTWG[0][gtwgIdxA];
     GTWG[0][gtwgIdxB] *= normal;
+    GTWG[1][gtwgIdxB] = GTWG[0][gtwgIdxB];
+    GTWG[2][gtwgIdxB] = GTWG[0][gtwgIdxB];
+
     // gtwg1 for pixels 0,2
+    /*
     sumitup2lane_AVX512FP16_16f(gtwg1A, &GTWG[1][gtwgIdxA], &GTWG[1][gtwgIdxB]);
     GTWG[1][gtwgIdxA] *= normal;
     GTWG[1][gtwgIdxB] *= normal;
@@ -189,21 +197,30 @@ void computeGTWG_Segment_AVX512FP16_16f(const _Float16 *img, const int nrows, co
     sumitup2lane_AVX512FP16_16f(gtwg3A, &GTWG[2][gtwgIdxA], &GTWG[2][gtwgIdxB]);
     GTWG[2][gtwgIdxA] *= normal;
     GTWG[2][gtwgIdxB] *= normal;
+    */
 
-    gtwgIdxA = gtwgIdx+1;
-    gtwgIdxB = gtwgIdx+3;
+    int gtwgIdxA2 = gtwgIdx+1;
+    int gtwgIdxB2 = gtwgIdx+3;
     // gtwg0 for pixels 1,3
-    sumitup2lane_AVX512FP16_16f(gtwg0B, &GTWG[0][gtwgIdxA], &GTWG[0][gtwgIdxB]);
+    /*
+    sumitup2lane_AVX512FP16_16f(gtwg0A, &GTWG[0][gtwgIdxA], &GTWG[0][gtwgIdxB]);
     GTWG[0][gtwgIdxA] *= normal;
     GTWG[0][gtwgIdxB] *= normal;
     // gtwg1 for pixels 1,3
-    sumitup2lane_AVX512FP16_16f(gtwg1B, &GTWG[1][gtwgIdxA], &GTWG[1][gtwgIdxB]);
+    sumitup2lane_AVX512FP16_16f(gtwg1A, &GTWG[1][gtwgIdxA], &GTWG[1][gtwgIdxB]);
     GTWG[1][gtwgIdxA] *= normal;
     GTWG[1][gtwgIdxB] *= normal;
     // gtwg3 for pixels 1,3
-    sumitup2lane_AVX512FP16_16f(gtwg3B, &GTWG[2][gtwgIdxA], &GTWG[2][gtwgIdxB]);
+    sumitup2lane_AVX512FP16_16f(gtwg3A, &GTWG[2][gtwgIdxA], &GTWG[2][gtwgIdxB]);
     GTWG[2][gtwgIdxA] *= normal;
     GTWG[2][gtwgIdxB] *= normal;
+    */
+    GTWG[0][gtwgIdxA2] = GTWG[0][gtwgIdxA];
+    GTWG[1][gtwgIdxA2] = GTWG[1][gtwgIdxA];
+    GTWG[2][gtwgIdxA2] = GTWG[2][gtwgIdxA];
+    GTWG[0][gtwgIdxB2] = GTWG[0][gtwgIdxB];
+    GTWG[1][gtwgIdxB2] = GTWG[1][gtwgIdxB];
+    GTWG[2][gtwgIdxB2] = GTWG[2][gtwgIdxB];
 
     return;
 }
