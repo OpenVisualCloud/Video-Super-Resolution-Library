@@ -535,7 +535,7 @@ void GetHashValue_AVX512FP16_16h_32Elements(_Float16 GTWG[3][32], int passIdx, i
                                         _mm512_add_ph( _mm512_add_ph(sqrtL1_ph, sqrtL2_ph), _mm512_set1_ph(near_zero) ) );
     __m512h strength_ph = L1_ph;
 
-    __m512i angleIdx_epi16 = _mm512_cvtph_epi16( _mm512_mul_ph (angle_ph, _mm512_set1_ph(gQAngle)));
+    __m512i angleIdx_epi16 = _mm512_cvtph_epi16( _mm512_floor_ph(_mm512_mul_ph (angle_ph, _mm512_set1_ph(gQAngle))));
 
     __m512i quantAngle_lessone_epi16 = _mm512_sub_epi16(_mm512_set1_epi16(gQuantizationAngle), one_epi16);
     angleIdx_epi16 = _mm512_mask_blend_epi16( _mm512_cmp_epi16_mask( angleIdx_epi16, quantAngle_lessone_epi16, _MM_CMPINT_GT),
