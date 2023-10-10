@@ -156,7 +156,7 @@ inline __m512 atan2Approximation_AVX512_32f_16Elements(__m512 y_ps, __m512 x_ps)
     const __m512 oneqtr_pi_ps = _mm512_set1_ps(ONEQTR_PI);
     const __m512 thrqtr_pi_ps = _mm512_set1_ps(THRQTR_PI);
 
-    __m512 abs_y_ps = _mm512_add_ps( _mm512_abs_ph(y_ps), _mm512_set1_ps(1e-10f)); 
+    __m512 abs_y_ps = _mm512_add_ps( _mm512_abs_ps(y_ps), _mm512_set1_ps(1e-10f)); 
 
     __m512 r_cond1_ps = _mm512_div_ps( _mm512_add_ps(x_ps, abs_y_ps), _mm512_sub_ps(abs_y_ps, x_ps));
     __m512 r_cond2_ps = _mm512_div_ps( _mm512_sub_ps(x_ps, abs_y_ps), _mm512_add_ps(x_ps, abs_y_ps));
@@ -164,7 +164,7 @@ inline __m512 atan2Approximation_AVX512_32f_16Elements(__m512 y_ps, __m512 x_ps)
     __m512 r_ps = _mm512_mask_blend_ps( r_cmp_m8, r_cond2_ps, r_cond1_ps);
     __m512 angle_ps = _mm512_mask_blend_ps( r_cmp_m8, oneqtr_pi_ps, thrqtr_pi_ps);
 
-    angle_ps = _mm512_fmadd_ps(_mm512_fmadd_ps(_mm512_mul_ph(_mm512_set1_ps(0.1963f), r_ps),
+    angle_ps = _mm512_fmadd_ps(_mm512_fmadd_ps(_mm512_mul_ps(_mm512_set1_ps(0.1963f), r_ps),
                                                                                     r_ps, _mm512_set1_ps(-0.9817f)),
                                                                                     r_ps, angle_ps);
 
@@ -188,9 +188,9 @@ void GetHashValue_AVX512_32f_16Elements(float GTWG[3][16], int passIdx, int32_t 
     const int cmp_le = _CMP_LE_OQ;
     const int cmp_gt = _CMP_GT_OQ;
 
-    __m512 m_a_ps = _mm512_load_ph( GTWG[0]);
-    __m512 m_b_ps = _mm512_load_ph( GTWG[1]);
-    __m512 m_d_ps = _mm512_load_ph( GTWG[2]);
+    __m512 m_a_ps = _mm512_load_ps( GTWG[0]);
+    __m512 m_b_ps = _mm512_load_ps( GTWG[1]);
+    __m512 m_d_ps = _mm512_load_ps( GTWG[2]);
 
     __m512 T_ps = _mm512_add_ps(m_a_ps, m_d_ps);
     __m512 D_ps = _mm512_sub_ps( _mm512_mul_ps( m_a_ps, m_d_ps),
@@ -243,7 +243,7 @@ void GetHashValue_AVX512_32f_16Elements(float GTWG[3][16], int passIdx, int32_t 
     __m512 gQCoh1_ps = _mm512_set1_ps(gQCoh_data[0]);
     __m512 gQCoh2_ps = _mm512_set1_ps(gQCoh_data[1]);
 
-    __m512i strengthIdx_epi32 = _mm512_mask_blend_epi32(_mm512_cmp_ph_mask(gQStr1_ps, strength_ps, _MM_CMPINT_LE),
+    __m512i strengthIdx_epi32 = _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQStr1_ps, strength_ps, _MM_CMPINT_LE),
                                                                      zero_epi32,
                                                                      _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQStr2_ps, strength_ps, _MM_CMPINT_LE),
                                                                                           two_epi32,
