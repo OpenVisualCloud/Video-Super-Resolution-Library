@@ -10,6 +10,25 @@
 #include <popcntintrin.h>
 #include <cmath>
 #include<string.h>
+
+inline __m512h floor_ph_512(__m512h val_ph)
+{ 
+    __m512h ret_ph;
+#ifndef USE_ATAN2_APPROX
+    ret_ph = _mm512_floor_ph(val_ph); // svml instruction. 
+#else
+    ret_ph = _mm512_cvtepi16_ph(_mm512_cvt_roundph_epi16(val_ph, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC));
+#endif
+    return ret_ph;
+}
+
+inline __m128h floor_ph_128(__m128h val_ph)
+{ 
+    __m128h ret_ph;
+    ret_ph = _mm_cvtepi16_ph(_mm512_castph512_ph128(_mm512_cvt_roundph_epi16(_mm512_castph128_ph512(val_ph), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)));
+    return ret_ph;
+}
+
 inline void load3x3_ph(_Float16 *img, unsigned int width, unsigned int height, unsigned int stride, __m128h *out_8neighbors_ph, __m128h *out_center_ph)
 {
     int index = (height - 1) * stride + (width - 1);
@@ -291,10 +310,7 @@ void CTCountOfBitsChangedSegment_AVX512FP16_16f(_Float16 *LRImage, _Float16 *HRI
             __m512h val_ph = _mm512_add_ph( _mm512_mul_ph( weight_ph, center_LR_ph),
                                             _mm512_mul_ph(weight2_ph, center_HR_ph));
             val_ph = _mm512_add_ph( val_ph, _mm512_set1_ph(0.5));
-
-#ifndef USE_ATAN2_APPROX
-            val_ph = _mm512_floor_ph(val_ph); // svml instruction. perhaps rounding would be better?
-#endif
+            val_ph = floor_ph_512(val_ph);
 
             // convert (float)val to (epu8/16)val
             __m512i val_epu16 = _mm512_cvtph_epu16(val_ph), val_epu8, perm_epu;
@@ -420,14 +436,10 @@ void GetHashValue_AVX512FP16_16h_8Elements(_Float16 GTWG[3][32], int passIdx, in
                                         _mm_add_ph( _mm_add_ph(sqrtL1_ph, sqrtL2_ph), _mm_set1_ph(near_zero) ) );
     __m128h strength_ph = L1_ph;
 
-    __m128i angleIdx_epi16 = _mm_cvtph_epi16( _mm_mul_ph (angle_ph, _mm_set1_ph(gQAngle)));
-
+    __m128i angleIdx_epi16 = floor_ph_128( _mm_mul_ph (angle_ph, _mm_set1_ph(gQAngle)));
     __m128i quantAngle_lessone_epi16 = _mm_sub_epi16(_mm_set1_epi16(gQuantizationAngle), one_epi16);
-    angleIdx_epi16 = _mm_mask_blend_epi16( _mm_cmp_epi16_mask( angleIdx_epi16, quantAngle_lessone_epi16, _MM_CMPINT_GT),
-                                            _mm_mask_blend_epi16(_mm_cmp_epi16_mask( angleIdx_epi16, zero_epi16, _MM_CMPINT_LT),
-                                                                                        angleIdx_epi16,
-                                                                                        zero_epi16), 
-                                            quantAngle_lessone_epi16);
+    angleIdx_epi16 = _mm_min_epi16( _mm_sub_epi16(_mm_set1_epi16(gQuantizationAngle), _mm_set1_epi16(1)),
+                    _mm_max_epi16(angleIdx_epi16, zero_epi16));
 
    // AFAIK, today QStr & QCoh are vectors of size 2.  I think searchsorted can return an index of 0,1, or 2
     _Float16 *gQStr_data, *gQCoh_data;
@@ -438,17 +450,14 @@ void GetHashValue_AVX512FP16_16h_8Elements(_Float16 GTWG[3][32], int passIdx, in
     __m128h gQCoh1_ph = _mm_set1_ph(gQCoh_data[0]);
     __m128h gQCoh2_ph = _mm_set1_ph(gQCoh_data[1]);
 
-
-    __m128i strengthIdx_epi16 = _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQStr1_ph, strength_ph, _MM_CMPINT_LE),
-                                                                     zero_epi16,
-                                                                     _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQStr2_ph, strength_ph, _MM_CMPINT_LE),   
-                                                                                          two_epi16,
-                                                                                          one_epi16));
-    __m128i coherenceIdx_epi16 = _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQCoh1_ph, coherence_ph, _MM_CMPINT_LE),
-                                                                     zero_epi16,
-                                                                     _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQCoh2_ph, coherence_ph, _MM_CMPINT_LE),   
-                                                                                          two_epi16,
-                                                                                          one_epi16));
+ __m128i strengthIdx_epi16 =
+                                    _mm_add_epi16(
+                                        _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQStr1_ph, strength_ph, _MM_CMPINT_LE),zero_epi16, one_epi16),
+                                        _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQStr2_ph, strength_ph, _MM_CMPINT_LE),zero_epi16, one_epi16));
+    __m128i coherenceIdx_epi16 =
+                                    _mm_add_epi16(
+                                        _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQCoh1_ph, coherence_ph, _MM_CMPINT_LE),zero_epi16, one_epi16),
+                                        _mm_mask_blend_epi16(_mm_cmp_ph_mask(gQCoh2_ph, coherence_ph, _MM_CMPINT_LE),zero_epi16, one_epi16));
 
    const __m128i gQuantizationCoherence_epi16 = _mm_set1_epi16(gQuantizationCoherence);
     __m128i idx_epi16 = _mm_mullo_epi16(gQuantizationCoherence_epi16,
@@ -498,9 +507,9 @@ void GetHashValue_AVX512FP16_16h_32Elements(_Float16 GTWG[3][32], int passIdx, i
     const int cmp_le = _CMP_LE_OQ;
     const int cmp_gt = _CMP_GT_OQ;
 
-    __m512h m_a_ph = _mm512_load_ph( &GTWG[0]);
-    __m512h m_b_ph = _mm512_load_ph( &GTWG[1]); 
-    __m512h m_d_ph = _mm512_load_ph( &GTWG[2]); 
+    __m512h m_a_ph = _mm512_load_ph( GTWG[0]);
+    __m512h m_b_ph = _mm512_load_ph( GTWG[1]); 
+    __m512h m_d_ph = _mm512_load_ph( GTWG[2]); 
 
     __m512h T_ph = _mm512_add_ph(m_a_ph, m_d_ph);
     __m512h D_ph = _mm512_sub_ph( _mm512_mul_ph( m_a_ph, m_d_ph),
@@ -535,14 +544,11 @@ void GetHashValue_AVX512FP16_16h_32Elements(_Float16 GTWG[3][32], int passIdx, i
                                         _mm512_add_ph( _mm512_add_ph(sqrtL1_ph, sqrtL2_ph), _mm512_set1_ph(near_zero) ) );
     __m512h strength_ph = L1_ph;
 
-    __m512i angleIdx_epi16 = _mm512_cvtph_epi16( _mm512_floor_ph(_mm512_mul_ph (angle_ph, _mm512_set1_ph(gQAngle))));
+    __m512i angleIdx_epi16 = floor_ph_512(_mm512_mul_ph (angle_ph, _mm512_set1_ph(gQAngle)));
 
     __m512i quantAngle_lessone_epi16 = _mm512_sub_epi16(_mm512_set1_epi16(gQuantizationAngle), one_epi16);
-    angleIdx_epi16 = _mm512_mask_blend_epi16( _mm512_cmp_epi16_mask( angleIdx_epi16, quantAngle_lessone_epi16, _MM_CMPINT_GT),
-                                            _mm512_mask_blend_epi16(_mm512_cmp_epi16_mask( angleIdx_epi16, zero_epi16, _MM_CMPINT_LT),
-                                                                                        angleIdx_epi16,
-                                                                                        zero_epi16), 
-                                            quantAngle_lessone_epi16);
+    angleIdx_epi16 = _mm512_min_epi16(_mm512_sub_epi16(_mm512_set1_epi16(gQuantizationAngle),_mm512_set1_epi16(1)),
+                    _mm512_max_epi16(angleIdx_epi16, zero_epi16));
 
    // AFAIK, today QStr & QCoh are vectors of size 2.  I think searchsorted can return an index of 0,1, or 2
     _Float16 *gQStr_data, *gQCoh_data;
@@ -553,17 +559,14 @@ void GetHashValue_AVX512FP16_16h_32Elements(_Float16 GTWG[3][32], int passIdx, i
     __m512h gQCoh1_ph = _mm512_set1_ph(gQCoh_data[0]);
     __m512h gQCoh2_ph = _mm512_set1_ph(gQCoh_data[1]);
 
-
-    __m512i strengthIdx_epi16 = _mm512_mask_blend_epi16(_mm512_cmp_ph_mask(gQStr1_ph, strength_ph, _MM_CMPINT_LE),
-                                                                     zero_epi16,
-                                                                     _mm512_mask_blend_epi16(_mm512_cmp_ph_mask(gQStr2_ph, strength_ph, _MM_CMPINT_LE),   
-                                                                                          two_epi16,
-                                                                                          one_epi16));
-    __m512i coherenceIdx_epi16 = _mm512_mask_blend_epi16(_mm512_cmp_ph_mask(gQCoh1_ph, coherence_ph, _MM_CMPINT_LE),
-                                                                     zero_epi16,
-                                                                     _mm512_mask_blend_epi16(_mm512_cmp_ph_mask(gQCoh2_ph, coherence_ph, _MM_CMPINT_LE),   
-                                                                                          two_epi16,
-                                                                                          one_epi16));
+    __m512i strengthIdx_epi16 =
+                                    _mm512_add_epi16(
+                                        _mm512_mask_blend_epi16(_mm512_cmp_ph_mask(gQStr1_ph, strength_ph, _MM_CMPINT_LE),zero_epi16, one_epi16),
+                                        _mm512_mask_blend_epi16(_mm512_cmp_ph_mask(gQStr2_ph, strength_ph, _MM_CMPINT_LE),zero_epi16, one_epi16));
+    __m512i coherenceIdx_epi16 =
+                                    _mm512_add_epi16(
+                                        _mm512_mask_blend_epi16(_mm512_cmp_ph_mask(gQCoh1_ph, coherence_ph, _MM_CMPINT_LE),zero_epi16, one_epi16),
+                                        _mm512_mask_blend_epi16(_mm512_cmp_ph_mask(gQCoh2_ph, coherence_ph, _MM_CMPINT_LE),zero_epi16, one_epi16));
 
    const __m512i gQuantizationCoherence_epi16 = _mm512_set1_epi16(gQuantizationCoherence);
     __m512i idx_epi16 = _mm512_mullo_epi16(gQuantizationCoherence_epi16,
