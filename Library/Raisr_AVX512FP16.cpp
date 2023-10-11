@@ -399,6 +399,12 @@ void GetHashValue_AVX512FP16_16h_8Elements(_Float16 GTWG[3][32], int passIdx, in
     __m128h m_b_ph = _mm_load_ph(GTWG[1]);
     __m128h m_d_ph = _mm_load_ph(GTWG[2]);
 
+    // GTWG values are very small. Let's multiply by 100 to make them bigger (scaled)
+    __m128h c = _mm_set1_ph(100);
+    m_a_ph = _mm_mul_ph(m_a_ph, c);
+    m_b_ph = _mm_mul_ph(m_b_ph, c);
+    m_d_ph = _mm_mul_ph(m_d_ph, c);
+
     __m128h T_ph = _mm_add_ph(m_a_ph, m_d_ph);
     __m128h D_ph = _mm_sub_ph( _mm_mul_ph( m_a_ph, m_d_ph),
                                 _mm_mul_ph( m_b_ph, m_b_ph));
@@ -431,6 +437,7 @@ void GetHashValue_AVX512FP16_16h_8Elements(_Float16 GTWG[3][32], int passIdx, in
     __m128h coherence_ph = _mm_div_ph( _mm_sub_ph( sqrtL1_ph, sqrtL2_ph ),
                                         _mm_add_ph( _mm_add_ph(sqrtL1_ph, sqrtL2_ph), _mm_set1_ph(near_zero) ) );
     __m128h strength_ph = L1_ph;
+    strength_ph = _mm_div_ph(strength_ph, c); // scale back because we scaled it up earlier
 
     __m128i angleIdx_epi16 = floor_ph_128( _mm_mul_ph (angle_ph, _mm_set1_ph(gQAngle)));
     __m128i quantAngle_lessone_epi16 = _mm_sub_epi16(_mm_set1_epi16(gQuantizationAngle), one_epi16);
@@ -507,7 +514,14 @@ void GetHashValue_AVX512FP16_16h_32Elements(_Float16 GTWG[3][32], int passIdx, i
     __m512h m_b_ph = _mm512_load_ph( GTWG[1]); 
     __m512h m_d_ph = _mm512_load_ph( GTWG[2]); 
 
+    // GTWG values are very small. Let's multiply by 100 to make them bigger (scaled)
+    __m512h c = _mm512_set1_ph(100);
+    m_a_ph = _mm512_mul_ph(m_a_ph, c);
+    m_b_ph = _mm512_mul_ph(m_b_ph, c);
+    m_d_ph = _mm512_mul_ph(m_d_ph, c);
+
     __m512h T_ph = _mm512_add_ph(m_a_ph, m_d_ph);
+
     __m512h D_ph = _mm512_sub_ph( _mm512_mul_ph( m_a_ph, m_d_ph),
                                 _mm512_mul_ph( m_b_ph, m_b_ph));
 
@@ -539,6 +553,7 @@ void GetHashValue_AVX512FP16_16h_32Elements(_Float16 GTWG[3][32], int passIdx, i
     __m512h coherence_ph = _mm512_div_ph( _mm512_sub_ph( sqrtL1_ph, sqrtL2_ph ),
                                         _mm512_add_ph( _mm512_add_ph(sqrtL1_ph, sqrtL2_ph), _mm512_set1_ph(near_zero) ) );
     __m512h strength_ph = L1_ph;
+    strength_ph = _mm512_div_ph(strength_ph, c);
 
     __m512i angleIdx_epi16 = floor_ph_512(_mm512_mul_ph (angle_ph, _mm512_set1_ph(gQAngle)));
 
