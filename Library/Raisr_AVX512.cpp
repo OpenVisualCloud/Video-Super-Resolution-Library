@@ -217,7 +217,7 @@ void GetHashValue_AVX512_32f_16Elements(float GTWG[3][16], int passIdx, int32_t 
 
     angle_ps = _mm512_add_ps ( angle_ps, _mm512_mask_blend_ps( _mm512_cmp_ps_mask(angle_ps, zero_ps, _CMP_LT_OQ), zero_ps, _mm512_set1_ps(pi)));
 
-    // fast sqrt with 11 bit accuracy
+    // fast sqrt 
     __m512 sqrtL1_ps = _mm512_rcp14_ps( _mm512_rsqrt14_ps( L1_ps ));
     __m512 sqrtL2_ps = _mm512_rcp14_ps( _mm512_rsqrt14_ps( L2_ps ));
 
@@ -227,12 +227,8 @@ void GetHashValue_AVX512_32f_16Elements(float GTWG[3][16], int passIdx, int32_t 
 
     __m512i angleIdx_epi32 = _mm512_cvtps_epi32( _mm512_floor_ps(_mm512_mul_ps (angle_ps, _mm512_set1_ps(gQAngle))));
     __m512i quantAngle_lessone_epi32 = _mm512_sub_epi32(_mm512_set1_epi32(gQuantizationAngle), one_epi32);
-    angleIdx_epi32 = _mm512_mask_blend_epi32( _mm512_cmp_epi32_mask( angleIdx_epi32, quantAngle_lessone_epi32, _MM_CMPINT_GT),
-                                            _mm512_mask_blend_epi32(_mm512_cmp_epi32_mask( angleIdx_epi32, zero_epi32, _MM_CMPINT_LT),
-                                                                                        angleIdx_epi32,
-                                                                                        zero_epi32),
-                                            quantAngle_lessone_epi32);
-
+    angleIdx_epi32 = _mm512_min_epi32( _mm512_sub_epi32( _mm512_set1_epi32(gQuantizationAngle), _mm512_set1_epi32(1)),
+                                       _mm512_max_epi32(angleIdx_epi32, zero_epi32 ) );
 
    // AFAIK, today QStr & QCoh are vectors of size 2.  I think searchsorted can return an index of 0,1, or 2
     float *gQStr_data, *gQCoh_data;
@@ -243,22 +239,20 @@ void GetHashValue_AVX512_32f_16Elements(float GTWG[3][16], int passIdx, int32_t 
     __m512 gQCoh1_ps = _mm512_set1_ps(gQCoh_data[0]);
     __m512 gQCoh2_ps = _mm512_set1_ps(gQCoh_data[1]);
 
-    __m512i strengthIdx_epi32 = _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQStr1_ps, strength_ps, _MM_CMPINT_LE),
-                                                                     zero_epi32,
-                                                                     _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQStr2_ps, strength_ps, _MM_CMPINT_LE),
-                                                                                          two_epi32,
-                                                                                          one_epi32));
-    __m512i coherenceIdx_epi32 = _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQCoh1_ps, coherence_ps, _MM_CMPINT_LE),
-                                                                     zero_epi32,
-                                                                     _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQCoh2_ps, coherence_ps, _MM_CMPINT_LE),
-                                                                                          two_epi32,
-                                                                                          one_epi32));
+    __m512i strengthIdx_epi32 = 
+                                    _mm512_add_epi32(
+                                        _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQStr1_ps, strength_ps, _MM_CMPINT_LE),zero_epi32, one_epi32),
+                                        _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQStr2_ps, strength_ps, _MM_CMPINT_LE),zero_epi32, one_epi32));
+    __m512i coherenceIdx_epi32 = 
+                                    _mm512_add_epi32(
+                                        _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQCoh1_ps, coherence_ps, _MM_CMPINT_LE),zero_epi32, one_epi32),
+                                        _mm512_mask_blend_epi32(_mm512_cmp_ps_mask(gQCoh2_ps, coherence_ps, _MM_CMPINT_LE),zero_epi32, one_epi32));
 
-   const __m512i gQuantizationCoherence_epi32 = _mm512_set1_epi32(gQuantizationCoherence);
+    const __m512i gQuantizationCoherence_epi32 = _mm512_set1_epi32(gQuantizationCoherence);
     __m512i idx_epi32 = _mm512_mullo_epi32(gQuantizationCoherence_epi32,
-                                            _mm512_mullo_epi32( (angleIdx_epi32), _mm512_set1_epi32(gQuantizationStrength)));
-    idx_epi32 = _mm512_add_epi32((coherenceIdx_epi32),
-                                _mm512_add_epi32(idx_epi32, _mm512_mullo_epi32((strengthIdx_epi32), gQuantizationCoherence_epi32)));
+                                            _mm512_mullo_epi32(angleIdx_epi32, _mm512_set1_epi32(gQuantizationStrength)));
+    idx_epi32 = _mm512_add_epi32(coherenceIdx_epi32,
+                                _mm512_add_epi32(idx_epi32, _mm512_mullo_epi32(strengthIdx_epi32, gQuantizationCoherence_epi32)));
 
     _mm512_storeu_si512((__m512i *)idx, idx_epi32);
 }
