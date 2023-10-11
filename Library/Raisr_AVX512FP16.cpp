@@ -11,22 +11,18 @@
 #include <cmath>
 #include<string.h>
 
-inline __m512h floor_ph_512(__m512h val_ph)
+inline __m512i floor_ph_512(__m512h val_ph)
 { 
-    __m512h ret_ph;
-#ifndef USE_ATAN2_APPROX
-    ret_ph = _mm512_floor_ph(val_ph); // svml instruction. 
-#else
-    ret_ph = _mm512_cvtepi16_ph(_mm512_cvt_roundph_epi16(val_ph, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC));
-#endif
-    return ret_ph;
+    __m512i ret_epi16;
+    ret_epi16 = _mm512_cvt_roundph_epi16(val_ph, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
+    return ret_epi16;
 }
 
-inline __m128h floor_ph_128(__m128h val_ph)
+inline __m128i floor_ph_128(__m128h val_ph)
 { 
-    __m128h ret_ph;
-    ret_ph = _mm_cvtepi16_ph(_mm512_castph512_ph128(_mm512_cvt_roundph_epi16(_mm512_castph128_ph512(val_ph), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC)));
-    return ret_ph;
+    __m128i ret_epi16;
+    ret_epi16 = _mm512_castph512_ph128(_mm512_cvt_roundph_epi16(_mm512_castph128_ph512(val_ph), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC));
+    return ret_epi16;
 }
 
 inline void load3x3_ph(_Float16 *img, unsigned int width, unsigned int height, unsigned int stride, __m128h *out_8neighbors_ph, __m128h *out_center_ph)
@@ -310,7 +306,7 @@ void CTCountOfBitsChangedSegment_AVX512FP16_16f(_Float16 *LRImage, _Float16 *HRI
             __m512h val_ph = _mm512_add_ph( _mm512_mul_ph( weight_ph, center_LR_ph),
                                             _mm512_mul_ph(weight2_ph, center_HR_ph));
             val_ph = _mm512_add_ph( val_ph, _mm512_set1_ph(0.5));
-            val_ph = floor_ph_512(val_ph);
+            val_ph = _mm512_cvtepi16_ph(floor_ph_512(val_ph));
 
             // convert (float)val to (epu8/16)val
             __m512i val_epu16 = _mm512_cvtph_epu16(val_ph), val_epu8, perm_epu;
