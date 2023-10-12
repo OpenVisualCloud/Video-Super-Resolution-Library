@@ -1,21 +1,32 @@
 # Copyright (c) 2023 Intel Corporation.
 # SPDX-License-Identifier: BSD-3-Clause
 
-FROM centos:centos7.9.2009
+FROM centos:centos7.9.2009 as build
 
 WORKDIR /opt/build
+ARG PREFIX=/opt/build
+ARG LD_LIBRARY_PATH="/opt/build/lib:/opt/build/lib64:/usr/local/lib:/usr/local/lib64"
 
-# download and install dependencies
-RUN   yum install -y git wget gcc-c++ make bzip2 zlib-devel texinfo && \
-    wget https://registrationcenter-download.intel.com/akdlm/irc_nas/19007/l_ipp_oneapi_p_2021.6.2.16995_offline.sh && \
-    chmod +x ./l_ipp_oneapi_p_2021.6.2.16995_offline.sh && \
-    ./l_ipp_oneapi_p_2021.6.2.16995_offline.sh -a -s --eula accept
+# repos for oneapi
+RUN echo $'[oneAPI]\n\
+name=Intel® oneAPI repository\n\
+baseurl=https://yum.repos.intel.com/oneapi\n\
+enabled=1\n\
+gpgcheck=1\n\
+repo_gpgcheck=1\n\
+gpgkey=https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB\n'\
+>> /tmp/oneAPI.repo
+
+RUN mv /tmp/oneAPI.repo /etc/yum.repos.d
+
+# download and install dependencies, the ipp link is not available https://registrationcenter-download.intel.com/akdlm/irc_nas/19007/l_ipp_oneapi_p_2021.6.2.16995_offline.sh, install ipp from oneapi repo
+RUN  yum install -y  intel-oneapi-ipp-devel git wget gcc-c++ make bzip2 zlib-devel texinfo
 
 # update binutils to 2.38 to support avx512fp16 instructions.
 RUN wget https://ftp.gnu.org/gnu/binutils/binutils-2.38.tar.gz --no-check-certificate && \
 	tar -xf binutils-2.38.tar.gz && \
 	cd binutils-2.38 && \
-	CC=gcc ./configure && \
+	CC=gcc ./configure --prefix=${PREFIX} && \
 	make -j$(nproc) && \
 	make install
 
@@ -31,7 +42,7 @@ ARG CMAKE=https://cmake.org/files/v3.14/cmake-3.14.0.tar.gz
 RUN wget ${CMAKE} && \
     tar zxf ./cmake-3.14.0.tar.gz && \
     cd cmake-3.14.0 && \
-    ./bootstrap --prefix=/usr/local && \
+    ./bootstrap --prefix=${PREFIX} && \
     make -j $(nproc) && \
     make install
 
@@ -40,13 +51,14 @@ RUN wget ${NASM} --no-check-certificate && \
     tar xjf ./nasm-2.15.05.tar.bz2 && \
     cd nasm-2.15.05 && \
     ./autogen.sh && \
-    ./configure --prefix=/usr/local --libdir=/usr/local/lib && \
+    ./configure --prefix=${PREFIX} --libdir=${PREFIX}/lib && \
     make -j $(nproc) && \
     make install
 
+ENV PATH=/opt/build/bin:$PATH
 RUN git clone https://github.com/mirror/x264 -b stable --depth 1 && \
     cd x264 && \
-    ./configure --prefix=/usr/local --libdir=/usr/local/lib \
+    ./configure --prefix=${PREFIX} --libdir=${PREFIX}/lib \
     --enable-shared && \
     make -j $(nproc) && \
     make install
@@ -55,21 +67,19 @@ ARG LIBX265=https://github.com/videolan/x265/archive/3.4.tar.gz
 RUN wget ${LIBX265} && \
     tar xzf ./3.4.tar.gz && \
     cd x265-3.4/build/linux && \
-    cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DHIGH_BIT_DEPTH=ON ../../source && \
+    cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=${PREFIX} -DHIGH_BIT_DEPTH=ON ../../source && \
     make -j$(nproc) && \
     make install
 
 # download raisr and ffmpeg
 COPY . /opt/build/Video-Super-Resolution-Library
-RUN ls /opt/build
 RUN  git clone https://github.com/FFmpeg/FFmpeg.git ffmpeg && \
     cd ffmpeg && \
     git checkout -b n6.0 n6.0 && \
     git config --global user.email "you@example.com" && \
     git am ../Video-Super-Resolution-Library/ffmpeg/*.patch
 
-RUN rm l_ipp_oneapi_p_2021.6.2.16995_offline.sh  && \
-    rm 3.4.tar.gz  && \
+RUN rm 3.4.tar.gz  && \
     rm cmake-3.14.0.tar.gz  && \
     rm nasm-2.15.05.tar.bz2  && \
     rm gcc-12.3.0.tar.gz  && \
@@ -77,15 +87,15 @@ RUN rm l_ipp_oneapi_p_2021.6.2.16995_offline.sh  && \
     rm -rf ./x265-3.4  && \
     rm -rf ./cmake-3.14.0  && \
     rm -rf ./nasm-2.15.05  && \
-    rm -rf ./gcc-11.3.0
+    rm -rf ./gcc-12.3.0
 
 # Build raisr and ffmpeg
-ENV PKG_CONFIG_PATH "/usr/local/lib/pkgconfig"
+ENV PKG_CONFIG_PATH "/usr/local/lib/pkgconfig:/opt/build/lib/pkgconfig"
 
 ENV CPATH "/opt/intel/oneapi/ipp/latest/include"
 ENV IPPROOT "/opt/intel/oneapi/ipp/latest"
 ENV IPP_TARGET_ARCH "intel64"
-ENV LD_LIBRARY_PATH "/opt/intel/oneapi/ipp/latest/lib/intel64:/usr/local/lib"
+ENV LD_LIBRARY_PATH "/opt/build/lib:/opt/build/lib64:/usr/local/lib:/usr/local/lib64:/opt/intel/oneapi/ipp/latest/lib/intel64"
 ENV LIBRARY_PATH "/opt/intel/oneapi/ipp/latest/lib/intel64"
 
 WORKDIR /opt/build/Video-Super-Resolution-Library
@@ -101,13 +111,56 @@ RUN cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr*.c libavfilter/ && \
     --enable-libx264 \
     --enable-libx265 \
     --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' \
-    --enable-cross-compile && \  
+    --enable-cross-compile \
+    --prefix="${PREFIX}"  && \
     make clean && \
     make -j $(nproc) && \
     make install
 
-# Copy the raisr filters from the raisr library
-RUN cp -r ../Video-Super-Resolution-Library/filters* .
+# cleanup
+WORKDIR /opt/build
 
+RUN \
+ldd ${PREFIX}/bin/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} /usr/local/lib/ && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippik0.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippin0.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippil9.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippie9.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippiy8.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippin8.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippim7.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsk0.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsn0.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsl9.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippse9.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsy8.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsn8.so.10.8 /usr/local/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsm7.so.10.8 /usr/local/lib && \
+        cp -r ${PREFIX}/bin/* /usr/local/bin/ && \
+        cp -r ${PREFIX}/share/ffmpeg /usr/local/share/ && \
+        LD_LIBRARY_PATH=/usr/local/lib ffmpeg -buildconf && \
+        cp -r ${PREFIX}/include/libav* ${PREFIX}/include/libpostproc ${PREFIX}/include/libsw* /usr/local/include && \
+        mkdir -p /usr/local/lib/pkgconfig && \
+        for pc in ${PREFIX}/lib/pkgconfig/libav*.pc ${PREFIX}/lib/pkgconfig/libpostproc.pc ${PREFIX}/lib/pkgconfig/libsw*.pc; do \
+          sed "s:${PREFIX}:/usr/local:g" <"$pc" >/usr/local/lib/pkgconfig/"${pc##*/}"; \
+        done
+
+# Copy the raisr filters from the raisr library
+RUN mkdir /raisrfolder
+RUN cp -r /opt/build/Video-Super-Resolution-Library/filters* /raisrfolder
+
+FROM centos:centos7.9.2009 AS base
+
+ENV   LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
+
+RUN mkdir /raisrfolder
+COPY --from=build /usr/local /usr/local/
+COPY --from=build /raisrfolder /raisrfolder
+
+RUN ln -s /usr/local/bin/ffmpeg /raisrfolder/ffmpeg
+
+WORKDIR /raisrfolder
 # Run ffmpeg and verify that the raisr filter is supported
-RUN ./ffmpeg -h filter=raisr
+RUN ffmpeg -h filter=raisr
+
+
