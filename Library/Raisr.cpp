@@ -1127,6 +1127,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                         return RNLErrorBadParameter;
                     }
                 }
+
 #ifdef __AVX512FP16__
                 if (gAsmType == AVX512_FP16) {
                     if (loopItr == 8) {
@@ -1134,6 +1135,9 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                     }  
                     else if (loopItr == 32) { 
                         GetHashValue_AVX512FP16_16h_32Elements(GTWG_fp16, passIdx, hashValue);
+                    } else {
+                        std::cout << "unsupported loopItr value: " << loopItr << std::endl;
+                        return RNLErrorBadParameter;
                     }
                 } else
 #endif
@@ -1143,6 +1147,9 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                     }
                     else if (loopItr == 16) {
                         GetHashValue_AVX512_32f_16Elements(GTWG, passIdx, hashValue); // 16 elements 
+                    } else {
+                        std::cout << "unsupported loopItr value: " << loopItr << std::endl;
+                        return RNLErrorBadParameter;
                     }
                 }
 
