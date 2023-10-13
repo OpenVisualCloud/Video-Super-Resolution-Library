@@ -1,4 +1,4 @@
-1. Filters trained on 675*4 images of pexels with area & bicubic & lancoz & nearest degradation
+1. Filters trained on 675 images of pexels with area & bicubic & lancoz & nearest & blur degradation
 2. Angle=24 Strength=3 Coherence=3 setting for both filters
 3. Cheapupscale: using output with bilinear upscaling for 1st pass, No cheapupscale of 2nd pass training.
 4.  10bit 1pass filter trained with multi-lr: bicubic+area+nearest+lanczos as LR and HRSharpen50 as HR
