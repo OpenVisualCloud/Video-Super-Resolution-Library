@@ -1145,9 +1145,12 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                     if (loopItr == 8) {
                         GetHashValue_AVX256_32f_8Elements(GTWG, passIdx, hashValue); // 8 elements
                     }
+#ifdef __AVX512F__
                     else if (loopItr == 16) {
                         GetHashValue_AVX512_32f_16Elements(GTWG, passIdx, hashValue); // 16 elements 
-                    } else {
+                    } 
+#endif
+                    else {
                         std::cout << "unsupported loopItr value: " << loopItr << std::endl;
                         return RNLErrorBadParameter;
                     }
