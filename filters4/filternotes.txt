@@ -1,7 +1,7 @@
-1. Filters trained on 675 images of pexels with area & bicubic & lancoz & nearest & blur degradation
-2. Angle=24 Strength=3 Coherence=3 setting for both filters
+1. Filters trained on 675 images of pexels with area & bicubic & lancoz & nearest & blur degradation.
+2. Angle=24 Strength=3 Coherence=3 setting for both filters.
 3. Cheapupscale: using output with bilinear upscaling for 1st pass, No cheapupscale of 2nd pass training.
-4.  10bit 1pass filter trained with multi-lr: bicubic+area+nearest+lanczos as LR and HRSharpen50 as HR
-    10bit 2pass filter trained with  HR after single augment:blur as cheapupscale images and sharpened HR images as HR
-    8bit 1pass filter trained with multi-lr: bicubic+area+nearest+lanczos as LR and HRSharpen50 as HR
-    8bit 2pass filter is the same with the filter4-2pass filter of the past version.
+4.  10bit 1pass filter uses the multi-lr: bicubic+area+nearest+lanczos as LR and higher sharpened HR as reference (s=1.5).
+    10bit 2pass filter uses the HR after single augment:blur as cheapupscale images and higher sharpened HR as reference (s=1.5).
+    8bit 1pass filter uses the multi-lr: bicubic+area+nearest+lanczos as LR and higher sharpened HR as reference (s=1.5) as reference. 
+    8bit 2pass filter uses the output images of the filter trained using bilinear upscaling & HR as cheapupscale images and uses higher sharpened HR as reference (s=1.5).
