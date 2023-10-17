@@ -21,7 +21,7 @@ inline __m512i floor_ph_512(__m512h val_ph)
 inline __m128i floor_ph_128(__m128h val_ph)
 { 
     __m128i ret_epi16;
-    ret_epi16 = _mm512_castph512_ph128(_mm512_cvt_roundph_epi16(_mm512_castph128_ph512(val_ph), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC));
+    ret_epi16 = _mm512_castsi512_si128(_mm512_cvt_roundph_epi16(_mm512_castph128_ph512(val_ph), _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC));
     return ret_epi16;
 }
 
