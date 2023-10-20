@@ -1053,7 +1053,7 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         endRow = endRow > (rows - gLoopMargin) ? (rows - gLoopMargin) : endRow;
 
         alignas(64) float GTWG[3][16];
-        alignas(64) int pixelType[unrollSizePatchBased]; //= {0, 0, 0, 0, 0, 0, 0, 0};
+        alignas(64) int pixelType[unrollSizePatchBased] = {0};
         alignas(64) int hashValue[unrollSizePatchBased];
         alignas(64) const float *fbase[unrollSizePatchBased];
         alignas(64) float pixbuf[unrollSizePatchBased][128] __attribute__((aligned(64)));
