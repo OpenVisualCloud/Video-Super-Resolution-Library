@@ -1853,20 +1853,22 @@ RNLERRORTYPE RNLDeinit()
 #ifdef ENABLE_RAISR_OPENCL
     if (gAsmType == OpenCL || gAsmType == OpenCLExternal) {
         RaisrOpenCLRelease(&gOpenCLContext);
-        delete gPool;
-        if (gPasses == 2)
-            delete[] gFilterBuffer2;
-        delete[] gFilterBuffer;
-        delete[] gPGaussian;
-        return RNLErrorNone;
+	SAFE_DELETE(gPool);
+	if (gPasses == 2)
+	    SAFE_ARR_DELETE(gFilterBuffer2);
+
+	SAFE_ARR_DELETE(gFilterBuffer);
+	SAFE_ARR_DELETE(gPGaussian);
+	return RNLErrorNone;
     }
 #endif
 
     for (int threadIdx = 0; threadIdx < gThreadCount; threadIdx++)
     {
-        ippsFree(gIppCtx.specY[threadIdx]);
-        ippsFree(gIppCtx.pbufferY[threadIdx]);
-
+	if (gIppCtx.specY[threadIdx])
+	    ippsFree(gIppCtx.specY[threadIdx]);
+        if (gIppCtx.pbufferY[threadIdx])
+	    ippsFree(gIppCtx.pbufferY[threadIdx]);
         for (int i = 0; i < gPasses; i++)
         {
             SAFE_ARR_DELETE(gIppCtx.segZones[i][threadIdx].inYUpscaled);
@@ -1879,8 +1881,11 @@ RNLERRORTYPE RNLDeinit()
 
     SAFE_ARR_DELETE(gIppCtx.specY);
     SAFE_ARR_DELETE(gIppCtx.pbufferY);
-    ippsFree(gIppCtx.specUV);
-    ippsFree(gIppCtx.pbufferUV);
+
+    if (gIppCtx.specUV)
+        ippsFree(gIppCtx.specUV);
+    if (gIppCtx.pbufferUV)
+        ippsFree(gIppCtx.pbufferUV);
 
     if (gPasses == 2)
     {
@@ -1893,7 +1898,8 @@ RNLERRORTYPE RNLDeinit()
         {
         SAFE_ARR_DELETE(gFilterBuffer2);
         }
-        SAFE_ARR_DELETE(gIntermediateY->pData);
+        if (gIntermediateY)
+	    SAFE_ARR_DELETE(gIntermediateY->pData);
         SAFE_DELETE(gIntermediateY);
     }
 #ifdef __AVX512FP16__
