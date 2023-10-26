@@ -319,7 +319,7 @@ static RNLERRORTYPE ReadTrainedData(std::string hashtablePath, std::string QStrP
         return RNLErrorBadParameter;
     }
 
-    if (gUsePixelType && pixelTypes != gRatio * gRatio)
+    if (pixelTypes != (int)gRatio * (int)gRatio)
     {
         std::cout << "[RAISR ERROR] HashTable format is not compatible in number of pixel types!\n";
         return RNLErrorBadParameter;
