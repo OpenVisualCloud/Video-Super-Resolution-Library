@@ -1261,13 +1261,16 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
                 }
                 c += loopItr;
             }
-            // Copy right border pixels for this row and left border pixels for next row
-            if (step == outY->step) {
-                memcpy(outY->pData + r * step - gLoopMargin * pix_bytes, pDst + rOffset * step - gLoopMargin * pix_bytes, 2 * gLoopMargin * pix_bytes);
+	    int unprocessed = cols - c; // unprocessed pixels on the right
+	    // Copy right border pixels for this row and left border pixels for next row
+	    if (step == outY->step) {
+		memcpy(outY->pData + r * step - unprocessed * pix_bytes, pDst + rOffset * step - unprocessed * pix_bytes, (unprocessed + gLoopMargin) * pix_bytes);
             } else {
-                memcpy(outY->pData + (r -1 ) * outY->step + (outY->width - gLoopMargin) * pix_bytes,
-                       pDst + rOffset * step - gLoopMargin * pix_bytes,
-                       gLoopMargin * pix_bytes);
+		// copy right border pixels for this row
+                memcpy(outY->pData + (r -1 ) * outY->step + (outY->width - unprocessed) * pix_bytes,
+                       pDst + rOffset * step - unprocessed * pix_bytes,
+                       unprocessed * pix_bytes);
+		// copy left border pixels for nex row
                 memcpy(outY->pData + r * outY->step,
                        pDst + rOffset * step,
                        gLoopMargin * pix_bytes);
