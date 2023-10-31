@@ -342,8 +342,7 @@ RNLERRORTYPE RaisrOpenCLInit(RaisrOpenCLContext *raisrOpenCLContext)
 
         int rows = raisrOpenCLContext->gPatchSize * raisrOpenCLContext->gPatchSize;
         int alignedRows = 16 * (int)((rows + 15) / 16);
-        uint64_t Aoffset = (uint64_t)filterBuffer & 0x3f;
-        float *AFilters = &filterBuffer[16 - (int)(Aoffset / sizeof(float))];
+        float *AFilters = &filterBuffer[0];
         int hashkeySize = raisrOpenCLContext->gQuantizationAngle *
                           raisrOpenCLContext->gQuantizationStrength *
                           raisrOpenCLContext->gQuantizationCoherence;
