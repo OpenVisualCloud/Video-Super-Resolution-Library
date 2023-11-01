@@ -29,15 +29,15 @@ Evaluating the quality of the RAISR can be done in different ways.
 
 **Sharpest output**
 ```
-./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:filterfolder=filters5" -pix_fmt yuv420p /output_files/out.yuv
+./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:filterfolder=filters4" -pix_fmt yuv420p /output_files/out.yuv
 ```
 **Fastest Performance ( second pass disabled )**
 ```
 ./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:filterfolder=filters1" -pix_fmt yuv420p /output_files/out.yuv
 ```
-**Medium sharpness**
+**Denoised output**
 ```
-./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:filterfolder=filters3" -pix_fmt yuv420p /output_files/out.yuv
+./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:mode=2:filterfolder=filters6_denoise_and_upscale" -pix_fmt yuv420p /output_files/out.yuv
 ```
 2. A source video or image can be downscaled by 2x, then passed through the RAISR filter which upscales by 2x
 ```
@@ -85,17 +85,31 @@ Changes the number of software threads used in the algorithm.  Values 1..120 wil
 ### filterfolder
 Allowable values: (Any folder path containing the 4 required filter files: Qfactor_cohbin_2_8/10, Qfactor_strbin_2_8/10, filterbin_2_8/10, config), default (“filters1”)
 
-Changing the way RAISR is trained (using different parameters and datasets) can alter the way RAISR's ML-based algorithms do upscale.  For the current release, 5 filters have been provided: filters1, filters2, filters3, filters4 and filters5.  Each filter has been generated with varying amounts of complexity and sharpness. For filters4 the 1st and 2nd pass filters both trained on sharpened HR as reference, for other filters only 2nd pass filters trained on shaprpened HR as reference
-and you can find the training informantion in filternotes.txt of each filters folder.
+Changing the way RAISR is trained (using different parameters and datasets) can alter the way RAISR's ML-based algorithms do upscale. For the current release, provides 3 filters for 2x upscaling and 2 filters for 1.5x upscaling. And for each filter you can find the training informantion in filternotes.txt of each filter folder.
+#### 2x upscaling filters
+The filters1, filters 4 and filters6_denoise_and_upscale are working on 2x upscaling.
 
-If doing a single pass ( passes=1 ), it is suggested to use filters1 or filters4.  With passes=2 the 5 filters are described as:
-| filter name | filter complexity | sharpness |
-| ----------- | ----------------- | ----------- |
-| filters1    | 864x2             | high |
-| filters2    | 864x2             | low |
-| filters3    | 864x2             | medium |
-| filters4    | 864x2             | high |
-| filters5    | 32000x2           | high |
+##### filters1
+For 8bit the filters1 has both 1pass and 2pass filters, for 10bit only has 1pass filter.
+The 1pass filters is only for 2x upscaling not sharpening or denoising effect. The 2pass filters has 2x upscaling and sharpening effect.
+
+##### filters4
+For 8bit/10bit has both 1pass and 2pass filters.
+The 1pass filters has 2x upscaling and sharpening effect and 2pass has more sharpening effect than 1pass.
+
+##### filters6_denoise_and_upscale
+For 8bit/10bit has both 1pass and 2pass filters.
+The 1pass is only working denoise and 2pass is working on 2x upscaling and with sharpening effect. So it needs to set `passes=2` and `mode=2` to do 2x upscale and will get denosing and sharpening effect on 2x upscaling output.
+
+#### 1.5x upscaling filters
+The filters15_1pass_denoise_and_upscale and filters15_2pass_denoise_and_upscale are working on 1.5x upscaling.
+
+##### filters15_1pass_denoise_and_upscale
+The filter only has 1pass and the output will get 1.5x upscaling and denosing and sharpening effect.
+
+##### filters15_2pass_denoise_and_upscale
+For 8bit/10bit has both 1pass and 2pass filters.
+The 1pass is only working on denosing and 2pass is working on 1.5x upscaling and with sharpening effect. So it needs to set `passes=2` and `mode=2` to do 1.5x upscale and will get denosing and sharpening effect on 1.5x upscaling output.
 
 Please see the examples under the "Evaluating the Quality" section above where we suggest 3 command lines based upon preference.
 Note that for second pass to work, the filter folder must contain 3 additional files: Qfactor_cohbin_2_8/10_2, Qfactor_strbin_2_8/10_2, filterbin_2_8/10_2
