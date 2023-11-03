@@ -1053,12 +1053,14 @@ RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, Blen
         endRow = endRow > (rows - gLoopMargin) ? (rows - gLoopMargin) : endRow;
 
         alignas(64) float GTWG[3][16];
-        alignas(64) int pixelType[unrollSizePatchBased] = {0};
+        alignas(64) int pixelType[unrollSizePatchBased];
         alignas(64) int hashValue[unrollSizePatchBased];
         alignas(64) const float *fbase[unrollSizePatchBased];
         alignas(64) float pixbuf[unrollSizePatchBased][128] __attribute__((aligned(64)));
         int pix;
         int census = 0;
+        memset(pixelType, 0, sizeof(int) * unrollSizePatchBased);
+
 #ifdef __AVX512FP16__
         alignas(64) _Float16 GTWG_fp16[3][32];
         alignas(64) const _Float16 *fbase_fp16[unrollSizePatchBased];
