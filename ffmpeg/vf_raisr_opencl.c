@@ -218,7 +218,7 @@ static const AVOption raisr_opencl_options[] = {
     {"range", "input color range", OFFSET(range), AV_OPT_TYPE_INT, {.i64 = VideoRange}, VideoRange, FullRange, FLAGS, "range"},
         { "video", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = VideoRange  },   INT_MIN, INT_MAX, FLAGS, "range" },
         { "full",  NULL, 0, AV_OPT_TYPE_CONST, { .i64 = FullRange  },    INT_MIN, INT_MAX, FLAGS, "range" },
-    {"filterfolder", "absolute filter folder path", OFFSET(filterfolder), AV_OPT_TYPE_STRING, {.str = "filters1"}, 0, 0, FLAGS},
+    {"filterfolder", "absolute filter folder path", OFFSET(filterfolder), AV_OPT_TYPE_STRING, {.str = "filters_2x/filters_lowres"}, 0, 0, FLAGS},
     {"blending", "CT blending mode (1: Randomness, 2: CountOfBitsChanged)",
       OFFSET(blending), AV_OPT_TYPE_INT, {.i64 = CountOfBitsChanged}, Randomness, CountOfBitsChanged, FLAGS, "blending"},
         { "Randomness",         NULL, 0, AV_OPT_TYPE_CONST, { .i64 = Randomness  },            INT_MIN, INT_MAX, FLAGS, "blending" },

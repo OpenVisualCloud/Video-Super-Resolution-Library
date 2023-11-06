@@ -82,7 +82,7 @@ static const AVOption raisr_options[] = {
     {"bits", "bit depth", OFFSET(bits), AV_OPT_TYPE_INT, {.i64 = 8}, 8, 10, FLAGS},
     {"range", "input color range", OFFSET(range), AV_OPT_TYPE_STRING, {.str = "video"}, 0, 0, FLAGS},
     {"threadcount", "thread count", OFFSET(threadcount), AV_OPT_TYPE_INT, {.i64 = DEFAULT_THREADCOUNT}, MIN_THREADCOUNT, MAX_THREADCOUNT, FLAGS},
-    {"filterfolder", "absolute filter folder path", OFFSET(filterfolder), AV_OPT_TYPE_STRING, {.str = "filters1"}, 0, 0, FLAGS},
+    {"filterfolder", "absolute filter folder path", OFFSET(filterfolder), AV_OPT_TYPE_STRING, {.str = "filters_2x/filters_lowres"}, 0, 0, FLAGS},
     {"blending", "CT blending mode (1: Randomness, 2: CountOfBitsChanged)", OFFSET(blending), AV_OPT_TYPE_INT, {.i64 = BLENDING_COUNT_OF_BITS_CHANGED}, BLENDING_RANDOMNESS, BLENDING_COUNT_OF_BITS_CHANGED, FLAGS},
     {"passes", "passes to run (1: one pass, 2: two pass)", OFFSET(passes), AV_OPT_TYPE_INT, {.i64 = 1}, 1, 2, FLAGS},
     {"mode", "mode for two pass (1: upscale in 1st pass, 2: upscale in 2nd pass)", OFFSET(mode), AV_OPT_TYPE_INT, {.i64 = 1}, 1, 2, FLAGS},
@@ -105,7 +105,7 @@ static av_cold int init(AVFilterContext *ctx)
     strcpy(basepath, cwd);
     if (strcmp(raisr->filterfolder, "") == 0)
     {
-        strcat(basepath, "/filters1");
+        strcat(basepath, "/filters_2x/filters_lowres");
     }
     else
     {

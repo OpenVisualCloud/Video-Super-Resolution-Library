@@ -29,15 +29,15 @@ Evaluating the quality of the RAISR can be done in different ways.
 
 **Sharpest output**
 ```
-./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:filterfolder=filters4" -pix_fmt yuv420p /output_files/out.yuv
+./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:filterfolder=filters_2x/filters_highres" -pix_fmt yuv420p /output_files/out.yuv
 ```
 **Fastest Performance ( second pass disabled )**
 ```
-./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:filterfolder=filters1" -pix_fmt yuv420p /output_files/out.yuv
+./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:filterfolder=filters_2x/filters_lowres" -pix_fmt yuv420p /output_files/out.yuv
 ```
 **Denoised output**
 ```
-./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:mode=2:filterfolder=filters6_denoise_and_upscale" -pix_fmt yuv420p /output_files/out.yuv
+./ffmpeg -i /input_files/input.mp4 -vf "raisr=threadcount=20:passes=2:mode=2:filterfolder=filters_2x/filters_denoise" -pix_fmt yuv420p /output_files/out.yuv
 ```
 2. A source video or image can be downscaled by 2x, then passed through the RAISR filter which upscales by 2x
 ```
@@ -69,7 +69,7 @@ ffmpeg -init_hw_device vaapi=va -init_hw_device opencl=ocl@va -hwaccel vaapi -hw
       range             <string>     ..FV....... color range of the input. If you are working with images, you 
                                                  may want to set range to full (video/full) (default video)
       threadcount       <int>        ..FV....... thread count (from 1 to 120) (default 1)
-      filterfolder      <string>     ..FV....... absolute filter folder path (default "filters1")
+      filterfolder      <string>     ..FV....... absolute filter folder path (default "filters_2x/filters_lowres")
       blending          <int>        ..FV....... CT blending mode (1: Randomness, 2: CountOfBitsChanged) (from 1 to 2) (default 2)
       passes            <int>        ..FV....... passes to run (1: one pass, 2: two pass) (from 1 to 2) (default 1)
       mode              <int>        ..FV....... mode for two pass (1: upscale in 1st pass, 2: upscale in 2nd
@@ -83,33 +83,56 @@ Allowable values (1,120), default (20)
 
 Changes the number of software threads used in the algorithm.  Values 1..120 will operate on segments of an image such that efficient threading can greatly increase the performance of the upscale.  The value itself is the number of threads allocated.
 ### filterfolder
-Allowable values: (Any folder path containing the 4 required filter files: Qfactor_cohbin_2_8/10, Qfactor_strbin_2_8/10, filterbin_2_8/10, config), default (“filters1”)
+Allowable values: (Any folder path containing the 4 required filter files: Qfactor_cohbin_2_8/10, Qfactor_strbin_2_8/10, filterbin_2_8/10, config), default (“filters_2x/filters_lowres”)
 
-Changing the way RAISR is trained (using different parameters and datasets) can alter the way RAISR's ML-based algorithms do upscale. For the current release, provides 3 filters for 2x upscaling and 2 filters for 1.5x upscaling. And for each filter you can find the training informantion in filternotes.txt of each filter folder.
-#### 2x upscaling filters
-The filters1, filters 4 and filters6_denoise_and_upscale are working on 2x upscaling.
-
-##### filters1
-For 8bit the filters1 has both 1pass and 2pass filters, for 10bit only has 1pass filter.
-The 1pass filters is only for 2x upscaling not sharpening or denoising effect. The 2pass filters has 2x upscaling and sharpening effect.
-
-##### filters4
-For 8bit/10bit has both 1pass and 2pass filters.
-The 1pass filters has 2x upscaling and sharpening effect and 2pass has more sharpening effect than 1pass.
-
-##### filters6_denoise_and_upscale
-For 8bit/10bit has both 1pass and 2pass filters.
-The 1pass is only working denoise and 2pass is working on 2x upscaling and with sharpening effect. So it needs to set `passes=2` and `mode=2` to do 2x upscale and will get denosing and sharpening effect on 2x upscaling output.
-
-#### 1.5x upscaling filters
-The filters15_1pass_denoise_and_upscale and filters15_2pass_denoise_and_upscale are working on 1.5x upscaling.
-
-##### filters15_1pass_denoise_and_upscale
-The filter only has 1pass and the output will get 1.5x upscaling and denosing and sharpening effect.
-
-##### filters15_2pass_denoise_and_upscale
-For 8bit/10bit has both 1pass and 2pass filters.
-The 1pass is only working on denosing and 2pass is working on 1.5x upscaling and with sharpening effect. So it needs to set `passes=2` and `mode=2` to do 1.5x upscale and will get denosing and sharpening effect on 1.5x upscaling output.
+Changing the way RAISR is trained (using different parameters and datasets) can alter the way RAISR's ML-based algorithms do upscale. For the current release, provides 3 filters for 2x upscaling and 1 filters for 1.5x upscaling. And for each filter you can find the training informantion in filternotes.txt of each filter folder.The following is a brief introduction to the usage scenarios of each filter.
+<table border="1">
+    <tbody>
+        <tr>
+            <th rowspan=2>Upscaling</th>
+            <th rowspan=2>Filters</th>
+            <th rowspan=2>Resolution</th>
+            <th rowspan=2>Usage</th>
+            <th colspan=2>Effect</th>
+        </tr>
+        <tr>
+            <th rowspan=1>1pass</th>
+            <th rowspan=1>2pass</th>
+        </tr>
+        <tr>
+            <td rowspan=3>2x</td>
+            <td >filters_lowres</td>
+            <td >low resolution
+            360p->720p,540p->1080p</td>
+            <td >filterfolder=filters_2x/filters_lowres:passes=1/2</td>
+            <td >2x upscaling</td>
+            <td >2x upscaling and sharpening</td>
+        </tr>
+        <tr>
+            <td >filters_highres</td>
+            <td >high resolution
+            1080p->4k</td>
+            <td >filterfolder=filters_2x/filters_highres:passes=1/2</td>
+            <td >2x upscaling and sharpening</td>
+            <td >2x upscaling and more sharpening than 1st pass</td>
+        </tr>
+        <tr>
+            <td >filters_denoise</td>
+            <td >no limitation</td>
+            <td >filterfolder=filters_2x/filters_denoise:passes=2:mode=2</td>
+            <td >denosing only for input</td>
+            <td >2x upscaling and sharpening</td>
+        </tr>
+        <tr>
+            <td >1.5x</td>
+            <td >filters_denoise</td>
+            <td >no limitation</td>
+            <td >filterfolder=filters_1.5x/filters_denoise:passes=1:ratio=1.5</td>
+            <td >1.5x upscaling, denosing and sharpening</td>
+            <td >N/A </td>
+        </tr>
+    </tbody>
+</table>
 
 Please see the examples under the "Evaluating the Quality" section above where we suggest 3 command lines based upon preference.
 Note that for second pass to work, the filter folder must contain 3 additional files: Qfactor_cohbin_2_8/10_2, Qfactor_strbin_2_8/10_2, filterbin_2_8/10_2
