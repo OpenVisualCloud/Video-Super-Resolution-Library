@@ -1,21 +1,26 @@
 # Prerequisites
 To build this project you will need:
-- Linux based OS (Tested and validated on Ubuntu 18.04 LTS, Ubuntu 22.04 and CentOS 7.9)
+- Linux based OS
+    - For CPU tested and validated on Ubuntu 18.04 LTS, Ubuntu 22.04 and CentOS 7.9
+    - For GPU tested and validated on Intel® Data Center GPU Flex 170 with Ubuntu 22.04 LTS(5.15 LTS kernel)
 - [Docker](https://www.docker.com/) 
 - Intel Xeon hardware which supports Intel AVX512 (Skylake generation or later)
-- Compiler (clang++, g++) 
+- Compiler (clang++, g++, icc), and enabling AVX512-FP16 on Sapphire Rapiads needs:
+    - clang++ version 14.0.0 or later
+    - g++ version 12.1.0 with binutils 2.38 or later
+    - icc version 2021.2 or later
 - Cmake version 3.14 or later 
 - Intel® Integrated Performance Primitives (Intel® IPP) (Stand-Alone Version is the minimum requirement)
 - zlib1g-dev, pkg-config (The pkg-config is used to find x264.pc/x265.pc in specific pkgconfig path.)
 
 We provide 3 ways to build the Intel VSR with FFmpeg environment:
-- build docker images with dockerfiles
-- build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/master/scripts)
-- build manually.
+- build docker images with dockerfiles(only for CPU).
+- build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/master/scripts)(only for CPU).
+- build manually(both CPU and GPU).
 
 # Build Docker Images.
 
-We provide 3 Dockerfile: Ubuntu18.04, Ubuntu22.04 and CentOS7.9. You can refer to below steps to build docker images.
+We provide 3 Dockerfile for Intel Xeon platforms: Ubuntu18.04, Ubuntu22.04 and CentOS7.9. You can refer to below steps to build docker images.
 ## Setup docker proxy as follows if you are behind a firewall:
 ```
 sudo mkdir -p /etc/systemd/system/docker.service.d
@@ -111,7 +116,7 @@ To build the library with OpenCL support, run \
 
 #### Copy vf_raisr.c to ffmpeg libavfilter folder
 `cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr.c libavfilter/` \
-To use raisr_opencl you need ot copy vf_raisr_opencl.c as well \
+To use raisr_opencl you need to copy vf_raisr_opencl.c as well \
 `cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr_opencl.c libavfilter/`
 
 #### Apply patch
