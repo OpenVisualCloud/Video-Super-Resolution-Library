@@ -85,13 +85,13 @@ Changes the number of software threads used in the algorithm.  Values 1..120 wil
 ### filterfolder
 Allowable values: (Any folder path containing the 4 required filter files: Qfactor_cohbin_2_8/10, Qfactor_strbin_2_8/10, filterbin_2_8/10, config), default (“filters_2x/filters_lowres”)
 
-Changing the way RAISR is trained (using different parameters and datasets) can alter the way RAISR's ML-based algorithms do upscale. For the current release, provides 3 filters for 2x upscaling and 1 filters for 1.5x upscaling. And for each filter you can find the training informantion in filternotes.txt of each filter folder.The following is a brief introduction to the usage scenarios of each filter.
+Changing the way RAISR is trained (using different parameters and datasets) can alter the way RAISR's ML-based algorithms do upscale. For the current release, provides 3 filters for 2x upscaling and 2 filters for 1.5x upscaling, current the 1.5x upscaling only support 8-bit. And for each filter you can find the training informantion in filternotes.txt of each filter folder.The following is a brief introduction to the usage scenarios of each filter.
 <table border="1">
     <tbody>
         <tr>
             <th rowspan=2>Upscaling</th>
             <th rowspan=2>Filters</th>
-            <th rowspan=2>Resolution</th>
+            <th rowspan=2>Resolution (recommendation)</th>
             <th rowspan=2>Usage</th>
             <th colspan=2>Effect</th>
         </tr>
@@ -100,7 +100,7 @@ Changing the way RAISR is trained (using different parameters and datasets) can 
             <th rowspan=1>2pass</th>
         </tr>
         <tr>
-            <td rowspan=3>2x</td>
+            <td rowspan=3>2x(support 8-bit and 10-bit)</td>
             <td >filters_lowres</td>
             <td >low resolution
             360p->720p,540p->1080p</td>
@@ -124,12 +124,20 @@ Changing the way RAISR is trained (using different parameters and datasets) can 
             <td >2x upscaling and sharpening</td>
         </tr>
         <tr>
-            <td >1.5x</td>
+            <td rowspan=2>1.5x(only support 8-bit)</td>
+            <td >filters_highres</td>
+            <td >high resolution
+            720p->1080p</td>
+            <td >filterfolder=filters_1.5x/filters_highres:passes=1:ratio=1.5</td>
+            <td >1.5x upscaling and sharpening</td>
+            <td >N/A</td>
+        </tr>
+        <tr>
             <td >filters_denoise</td>
             <td >no limitation</td>
-            <td >filterfolder=filters_1.5x/filters_denoise:passes=1:ratio=1.5</td>
-            <td >1.5x upscaling, denosing and sharpening</td>
-            <td >N/A </td>
+            <td >filterfolder=filters_1.5x/filters_denoise:passes=2:mode=2:ratio=1.5</td>
+            <td >denosing only for input</td>
+            <td >1.5x upscaling and sharpening </td>
         </tr>
     </tbody>
 </table>

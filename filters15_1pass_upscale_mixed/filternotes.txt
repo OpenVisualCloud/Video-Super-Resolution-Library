@@ -1,4 +1,0 @@
-Filter for 1 pass for 1.5x upscale
-1. Filters trained on ~700 images of pexels with linear degradation
-2. Angle=24 Strength=3 Coherence=3 setting for both filters
-3. The 1st is an upscaler with some sharpness added with cheapupscaled generated with a mixed of upscale algorithm.

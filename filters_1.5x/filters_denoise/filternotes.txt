@@ -1,4 +1,5 @@
-Filter for 1 pass for 1.5x upscale
-1. Filters trained on ~700 images of pexels with linear degradation, some sharpness and light denoise were added too to the filter
+Filter for 2 pass for 1.5x upscale
+1. Filters trained on ~700 images of pexels with linear degradation
 2. Angle=24 Strength=3 Coherence=3 setting for both filters
-3. Filter 1 pass only
+3. The 1st is a denoiser and the 2d pass an upscaler with some sharpness added.
+4. Need to run this filter with passes=2 and mode=2 
