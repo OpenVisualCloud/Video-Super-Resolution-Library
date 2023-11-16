@@ -1,5 +1,30 @@
 # Intel® Library for Video Super Resolution (Intel® Library for VSR) Release Notes
 
+# New and Changed in Release v23.11
+
+**v23.11**
+
+## New and Changed in v23.11
+- NEW:Enabled OpenCL acceleration, supported Intel® GPUs platforms.
+- NEW:Enabled AVX512-FP16 for faster processing on 4th generation Intel® Xeon Scalable processor.
+- NEW:Supported 1.5x upscaling for 8-bit.
+- NEW:Added filters with denoising effect.
+- NEW:Supported YUV444 format in ffmpeg plugin which can improve quality for input and output in RBG or YUV444 format.
+- NEW:Added new dockerfiles with Ubuntu 22.04 and CentOS 7.9.
+- Upgraded ffmpeg to n6.0.
+- Improved performance for Intel® Xeon platforms.
+- Optimized the filter size and enhanced filter file format to binary.
+- Removed the filters2, filters3, filters5 and renamed filters1->filters_2x/filters_lowres and filters4->filters_2x/filters_highres, and improved the quality of filters_highres.
+
+## Bug Fixes
+- Fixed the segmentation fault issue with some specific threadcount.
+- Fixed the black block issue with blending=1 cases.
+
+## Known Limitations
+- Only 2x and 1.5x upscaling supported.
+- patchSize passed into RNLInit must be set to 11. Algorithms are currently tuned to work only with a patch size of 11. Values other than 11 will fail.
+- For usage of Intel AVX2, system hardware must be run on Intel Haswell Processor or later. For usage of Intel AVX-512, system hardware must be run on Intel Xeon Scalable Processesors (1st Gen or later, Skylake or later ). For usage of Intel AVX512-FP16, system hardware must be run on 4th generation Intel Xeon Scalable Processesors or later.
+
 # New and Changed in Release v22.12
 
 **v22.12**

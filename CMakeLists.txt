@@ -14,8 +14,8 @@ set(CMAKE_BUILD_TYPE Release)
 enable_language(CXX)
 include(CheckCXXCompilerFlag)
 
-set(RAISR_VERSION_MAJOR           "22")
-set(RAISR_VERSION_MINOR           "12")
+set(RAISR_VERSION_MAJOR           "23")
+set(RAISR_VERSION_MINOR           "11")
 configure_file(${PROJECT_SOURCE_DIR}/Library/RaisrVersion.h.in ${PROJECT_SOURCE_DIR}/Library/RaisrVersion.h @ONLY)
 
 if( UNIX )
