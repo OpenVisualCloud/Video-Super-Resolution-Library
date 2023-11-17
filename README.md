@@ -68,7 +68,7 @@ ffmpeg -init_hw_device vaapi=va -init_hw_device opencl=ocl@va -hwaccel vaapi -hw
 `./ffmpeg -h filter=raisr`
 
     raisr AVOptions:
-      ratio             <float>      ..FV....... ratio of the upscaling, between 1 and 4 (from 1 to 4) (default 2)
+      ratio             <float>      ..FV....... ratio of the upscaling, between 1 and 2 (default 2)
       bits              <int>        ..FV....... bit depth (from 8 to 10) (default 8)
       range             <string>     ..FV....... color range of the input. If you are working with images, you may want to set range to full (video/full) (default video)
       threadcount       <int>        ..FV....... thread count (from 1 to 120) (default 20)

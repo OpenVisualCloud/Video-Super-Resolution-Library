@@ -38,7 +38,7 @@
 #include <unistd.h>
 
 #define MIN_RATIO 1
-#define MAX_RATIO 4
+#define MAX_RATIO 2
 #define DEFAULT_RATIO 2
 
 #define MIN_THREADCOUNT 1
@@ -78,7 +78,7 @@ typedef struct RaisrContext
 #define OFFSET(x) offsetof(RaisrContext, x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM | AV_OPT_FLAG_VIDEO_PARAM
 static const AVOption raisr_options[] = {
-    {"ratio", "ratio of the upscaling, between 1 and 4", OFFSET(ratio), AV_OPT_TYPE_FLOAT, {.dbl = DEFAULT_RATIO}, MIN_RATIO, MAX_RATIO, FLAGS},
+    {"ratio", "ratio of the upscaling, between 1 and 2", OFFSET(ratio), AV_OPT_TYPE_FLOAT, {.dbl = DEFAULT_RATIO}, MIN_RATIO, MAX_RATIO, FLAGS},
     {"bits", "bit depth", OFFSET(bits), AV_OPT_TYPE_INT, {.i64 = 8}, 8, 10, FLAGS},
     {"range", "input color range", OFFSET(range), AV_OPT_TYPE_STRING, {.str = "video"}, 0, 0, FLAGS},
     {"threadcount", "thread count", OFFSET(threadcount), AV_OPT_TYPE_INT, {.i64 = DEFAULT_THREADCOUNT}, MIN_THREADCOUNT, MAX_THREADCOUNT, FLAGS},

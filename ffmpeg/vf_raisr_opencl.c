@@ -27,7 +27,7 @@
 #include "libavutil/pixdesc.h"
 
 #define MIN_RATIO 1
-#define MAX_RATIO 4
+#define MAX_RATIO 2
 #define DEFAULT_RATIO 2
 
 typedef struct RaisrOpenCLContext {
@@ -212,7 +212,7 @@ static av_cold void raisr_opencl_uninit(AVFilterContext *avctx)
 #define OFFSET(x) offsetof(RaisrOpenCLContext, x)
 #define FLAGS (AV_OPT_FLAG_FILTERING_PARAM | AV_OPT_FLAG_VIDEO_PARAM)
 static const AVOption raisr_opencl_options[] = {
-    {"ratio", "ratio (currently only ratio of 2 is supported)", OFFSET(ratio),
+    {"ratio", "ratio of the upscaling, between 1 and 2", OFFSET(ratio),
 	 AV_OPT_TYPE_FLOAT, {.dbl = DEFAULT_RATIO}, MIN_RATIO, MAX_RATIO, FLAGS},
     {"bits", "bit depth", OFFSET(bits), AV_OPT_TYPE_INT, {.i64 = 8}, 8, 10, FLAGS},
     {"range", "input color range", OFFSET(range), AV_OPT_TYPE_INT, {.i64 = VideoRange}, VideoRange, FullRange, FLAGS, "range"},
