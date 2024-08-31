@@ -4,6 +4,7 @@
 # It requires Linux based OS(Tested and validated on Ubuntu 18.04 LTS), gcc/g++ 7.5 or later, make and pkg-config to run this script.
 
 # Usage: 02_install_prerequisites.sh /xxx/raisr.tar.gz
+set -eo pipefail
 
 package_path=$1
 if [ -z "$package_path" ];then
@@ -15,8 +16,8 @@ tar -zxf $package_path ./
 cd raisr
 
 # install IPP
-chmod +x ./l_ipp_oneapi_p_2021.6.2.16995_offline.sh
-sudo ./l_ipp_oneapi_p_2021.6.2.16995_offline.sh -a -s --eula accept
+chmod +x ./l_ipp_oneapi_p_2021.12.1.16_offline.sh
+sudo ./l_ipp_oneapi_p_2021.12.1.16_offline.sh -a -s --eula accept
 echo "source /opt/intel/oneapi/ipp/latest/env/vars.sh" | tee -a ~/.bash_profile
 
 # build and install CMake 3.14
