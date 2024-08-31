@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script is used to pull all resources(Cmake 3.14, nasm, x264, x265, IPP, Raisr and ffmpeg) used for build RAISR and ffmpeg. And by default, the script will generate a tarball raisr.tar.gz of these resources and you can use "no_package" option to disable generate the tarball.
-
+set -eo pipefail
 package_flag=true
 
 # Usage: 01_pull_resource <no_package>
@@ -63,8 +63,9 @@ if [ ! -f "3.4.tar.gz" ];then
 fi
 
 # pull IPP
-wget https://registrationcenter-download.intel.com/akdlm/irc_nas/19007/l_ipp_oneapi_p_2021.6.2.16995_offline.sh
-if [ ! -f "l_ipp_oneapi_p_2021.6.2.16995_offline.sh" ];then
+ipp_offline_uri='https://registrationcenter-download.intel.com/akdlm/IRC_NAS/7e07b203-af56-4b52-b69d-97680826a8df/l_ipp_oneapi_p_2021.12.1.16_offline.sh'
+wget "${ipp_offline_uri}"
+if [ ! -f "${ipp_offline_uri##*/}" ];then
     echo "Failed to download IPP package!"
     exit 1
 fi
