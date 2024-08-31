@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /.github
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: "weekly"
+      day: "sunday"
