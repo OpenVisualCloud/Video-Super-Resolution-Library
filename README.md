@@ -5,6 +5,8 @@ We have enhanced the public RAISR (Rapid and Accurate Image Super Resolution), a
 
 Enhanced RAISR is provided as an FFmpeg plugin inside of a Docker container(Docker container only for CPU) to help ease testing and deployment burdens. This project is developed using C++ and takes advantage of Intel® Advanced Vector Extension 512 (Intel® AVX-512) on Intel® Xeon® Scalable Processor family and  OpenCL support on Intel® GPUs.
 
+![image](https://github.com/user-attachments/assets/e28b52c2-67c7-44a9-a66f-df8b355735f9)
+
 ## Latest News 
 - July 2024 : Release performance of the alogorithm and pipeline on Intel® Xeon® Scalable processor as well as EC2 Intel instances deployed on AWS Cloud. See details at "performance.md".  
 
