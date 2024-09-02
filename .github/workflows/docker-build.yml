@@ -47,15 +47,15 @@ jobs:
         shell: bash
     timeout-minutes: 90
     steps:
-      - name: Build Dockerfile for ${{ matrix.dockerfiles }}
+      - name: 'Build Dockerfile for ${{ matrix.dockerfiles }}'
         uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
         with:
-          file: docker/Dockerfile.${{ matrix.dockerfiles }}
+          file: '${{ github.workspace }}/docker/Dockerfile.${{ matrix.dockerfiles }}'
           context: .
           push: false
           tags: 'docker.io/openvisualcloud/raisr/${{ matrix.dockerfiles }}:${{ github.sha }}'
 
-      - name: Run Trivy vulnerability scanner on result
+      - name: 'Run Trivy vulnerability scanner on result'
         uses: aquasecurity/trivy-action@0.20.0
         with:
           image-ref: 'docker.io/openvisualcloud/raisr/${{ matrix.dockerfiles }}:${{ github.sha }}'
@@ -64,9 +64,9 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
           format: 'sarif'
-          output: 'trivy-${{ matrix.dockerfiles }}-${{ github.sha }}.sarif'
+          output: '${{ github.workspace }}/trivy-${{ matrix.dockerfiles }}-${{ github.sha }}.sarif'
 
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: 'Upload Trivy scan results to GitHub Security tab'
         uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: 'trivy-${{ matrix.dockerfiles }}-${{ github.sha }}.sarif'
+          sarif_file: '${{ github.workspace }}/trivy-${{ matrix.dockerfiles }}-${{ github.sha }}.sarif'
