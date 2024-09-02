@@ -27,9 +27,6 @@ jobs:
       security-events: write  # for github/codeql-action/upload-sarif to upload SARIF results
     name: scan-type-rootfs
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
       - name: Run Trivy vulnerability scanner, scan-type=rootfs
         uses: aquasecurity/trivy-action@0.20.0
         with:
@@ -37,13 +34,13 @@ jobs:
           scan-ref: 'rootfs-example-binary'
           ignore-unfixed: true
           format: 'sarif'
-          output: 'trivy-rootfs-results.sarif'
+          output: '${{ github.workspace }}/trivy-rootfs-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
 
       - name: Upload Trivy rootfs scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: 'trivy-rootfs-results.sarif'
+          sarif_file: '${{ github.workspace }}/trivy-rootfs-results.sarif'
 
   scan-type-config:
     runs-on: ubuntu-22.04
@@ -60,10 +57,10 @@ jobs:
           hide-progress: false
           ignore-unfixed: true
           format: 'sarif'
-          output: 'trivy-config-results.sarif'
+          output: '${{ github.workspace }}/trivy-config-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
 
       - name: Upload Trivy config scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11
         with:
-          sarif_file: 'trivy-config-results.sarif'
+          sarif_file: '${{ github.workspace }}/trivy-config-results.sarif'
