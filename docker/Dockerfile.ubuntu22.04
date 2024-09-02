@@ -71,7 +71,7 @@ ldd ${PREFIX}/bin/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} /usr/local/lib/ && \
 RUN mkdir /raisrfolder
 RUN cp -r /opt/build/Video-Super-Resolution-Library/filters* /raisrfolder
 
-FROM ubuntu:22.04 AS base
+FROM ubuntu:24.04 AS base
 
 ENV   LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
 
