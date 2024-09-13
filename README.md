@@ -1,5 +1,5 @@
 # Intel® Library for Video Super Resolution (Intel® Library for VSR) README
-Video Super Resolution coverts video from low resolution to high resolution using traditional image processing or AI-based methods. Intel Library for Video Super Resolution consist of a few different algorithms including machine learning and deep learning implementations to offer a balance between quality and performance.
+Video Super Resolution converts video from low resolution to high resolution using traditional image processing or AI-based methods. Intel Library for Video Super Resolution consist of a few different algorithms including machine learning and deep learning implementations to offer a balance between quality and performance.
 
 We have enhanced the public RAISR (Rapid and Accurate Image Super Resolution), an AI based Super Resolution algorithm https://arxiv.org/pdf/1606.01299.pdf, to achieve better visual quality and beyond real-time performance for 2x and 1.5x upscaling on Intel® Xeon® platforms and Intel® GPUs. Enhanced RAISR provides better quality results than standard (bicubic) algorithms and a good performance vs quality trade-off as compared to compute intensive DL-based algorithms. 
 
