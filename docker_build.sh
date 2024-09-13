@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This script is used to build the docker image of Intel Video Super Resolution.
 
@@ -14,9 +14,10 @@ if [ -n "$1" ]; then
 	    centos) OS="centos" VERSION="7.9" ;;
 	    *) echo "This version of dockerfile does not exist will build defualt image with ubuntu22.04."
     esac
+	shift
 fi
 
-if [ -n "$2" ]; then
+if [ -n "$1" ]; then
 	if [ $OS = "ubuntu" ]; then
 		case "$2" in
 			18.04) VERSION="18.04" ;;
@@ -30,7 +31,13 @@ if [ -n "$2" ]; then
 			*) echo "This version of dockerfile does not exist will build defualt image with centos7.9."
 		esac
 	fi
+	shift
 fi
 
-docker build -f ./docker/Dockerfile.${OS}${VERSION} --build-arg http_proxy=${http_proxy} --build-arg https_proxy=${https_proxy} -t raisr:${OS}${VERSION} .
+docker buildx build "$@" \
+	-f ./docker/Dockerfile.${OS}${VERSION} \
+	--build-arg http_proxy=${http_proxy} \
+	--build-arg https_proxy=${https_proxy} \
+	-t raisr:${OS}${VERSION} \
+	.
 
