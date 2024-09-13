@@ -1,0 +1,66 @@
+name: Docker Build
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  docker-build:
+    name: Dockerfiles Build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfiles: [ 'ubuntu22.04', 'ubuntu18.04', 'centos7.9' ]
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 90
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@5927c834f5b4fdf503fca6f4c7eccda82949e1ee # v3.1.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4fd812986e6c8c2a69e18311145f9371337f27d4 # v3.4.0
+        with:
+          buildkitd-flags: --debug
+
+      - name: 'Build Dockerfile for ${{ matrix.dockerfiles }}'
+        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+        with:
+          file: '${{ github.workspace }}/docker/Dockerfile.${{ matrix.dockerfiles }}'
+          context: .
+          push: false
+          tags: 'docker.io/openvisualcloud/raisr/${{ matrix.dockerfiles }}:${{ github.sha }}'
+
+      - name: 'Run Trivy vulnerability scanner on result'
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: 'docker.io/openvisualcloud/raisr/${{ matrix.dockerfiles }}:${{ github.sha }}'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          format: 'sarif'
+          output: '${{ github.workspace }}/trivy-${{ matrix.dockerfiles }}-${{ github.sha }}.sarif'
+
+      - name: 'Upload Trivy scan results to GitHub Security tab'
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: '${{ github.workspace }}/trivy-${{ matrix.dockerfiles }}-${{ github.sha }}.sarif'

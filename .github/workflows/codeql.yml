@@ -1,0 +1,66 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "master", "main", "dev" ]
+  pull_request:
+    branches: [ "master", "main", "dev" ]
+  schedule:
+    - cron: '42 8 * * 1'
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+  PREFIX_DIR: /usr/local
+  DEBIAN_FRONTEND: noninteractive
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ${{ matrix.runner-os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        runner-os: [ 'ubuntu-22.04' ]
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: 'Harden Runner'
+      uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+      with:
+        egress-policy: audit
+
+    - name: 'Checkout repository'
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: 'Initialize CodeQL'
+      uses: github/codeql-action/init@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11
+      with:
+        languages: 'c-cpp'
+        build-mode: autobuild
+        # config-file: ${{ github.workspace }}/.github/codeql/codeql-config.yml
+
+    - if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        echo 'If you are using a "manual" build mode for one or more of the' \
+          'languages you are analyzing, replace this with the commands to build' \
+          'your code, for example:'
+        echo '  make bootstrap'
+        echo '  make release'
+        exit 1
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
