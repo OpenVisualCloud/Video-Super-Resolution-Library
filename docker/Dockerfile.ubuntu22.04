@@ -66,15 +66,14 @@ RUN ldd ${PREFIX}/bin/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} . && \
     cp ${LIBIPP}/libippsn8.so.10.8 . && \
     cp ${LIBIPP}/libippsm7.so.10.8 . && \
     cp ${LIBIPP}/libippik0.so.10.8 . && \
+    cp ${LIBIPP}/libippil9.so.10.8 . && \
     mv ${PREFIX}/bin ${PREFIX}/usr/local/ && \
     LD_LIBRARY_PATH=${PREFIX}/usr/local/lib ${PREFIX}/usr/local/bin/ffmpeg -buildconf && \
     rm -rf ${PREFIX}/include/ ${PREFIX}/share/ ${PREFIX}/lib/
 
 
 ARG IMAGE_CACHE_REGISTRY
-ARG IMAGE_NAME=library/ubuntu:22.04@sha256:adbb90115a21969d2fe6fa7f9af4253e16d45f8d4c1e930182610c4731962658
-
-FROM ${IMAGE_CACHE_REGISTRY}/${IMAGE_NAME} AS base
+FROM ${IMAGE_CACHE_REGISTRY}/library/ubuntu:22.04@sha256:adbb90115a21969d2fe6fa7f9af4253e16d45f8d4c1e930182610c4731962658 AS base
 
 LABEL org.opencontainers.image.authors="milosz.linkiewicz@intel.com,xiaoxia.liang@intel.com"
 LABEL org.opencontainers.image.url="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library"

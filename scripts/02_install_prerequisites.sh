@@ -54,7 +54,7 @@ cd x265-3.4/build/linux && \
 cd -
 
 # remove the resources except Raisr and ffmpeg
-rm l_ipp_oneapi_p_2021.6.2.16995_offline.sh
+rm l_ipp_oneapi_p_2021.12.1.16_offline.sh
 rm 3.4.tar.gz
 rm cmake-3.14.0.tar.gz
 rm nasm-2.15.05.tar.bz2
