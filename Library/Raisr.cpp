@@ -1856,15 +1856,17 @@ RNLERRORTYPE RNLDeinit()
 
     for (int threadIdx = 0; threadIdx < gThreadCount; threadIdx++)
     {
-	if (gIppCtx.specY[threadIdx])
+	if (gIppCtx.specY && gIppCtx.specY[threadIdx])
 	    ippsFree(gIppCtx.specY[threadIdx]);
-        if (gIppCtx.pbufferY[threadIdx])
+        if (gIppCtx.pbufferY && gIppCtx.pbufferY[threadIdx])
 	    ippsFree(gIppCtx.pbufferY[threadIdx]);
         for (int i = 0; i < gPasses; i++)
         {
-            SAFE_ARR_DELETE(gIppCtx.segZones[i][threadIdx].inYUpscaled);
-            SAFE_ARR_DELETE(gIppCtx.segZones[i][threadIdx].inYUpscaled32f);
-            SAFE_ARR_DELETE(gIppCtx.segZones[i][threadIdx].raisr32f);
+            if (gIppCtx.segZones && gIppCtx.segZones[i]) {
+                SAFE_ARR_DELETE(gIppCtx.segZones[i][threadIdx].inYUpscaled);
+                SAFE_ARR_DELETE(gIppCtx.segZones[i][threadIdx].inYUpscaled32f);
+                SAFE_ARR_DELETE(gIppCtx.segZones[i][threadIdx].raisr32f);
+	   }
         }
     }
     SAFE_DELETE(gPool);
