@@ -25,6 +25,7 @@
 #include "internal.h"
 #include "opencl.h"
 #include "libavutil/pixdesc.h"
+#include "video.h"
 
 #define MIN_RATIO 1
 #define MAX_RATIO 2
@@ -109,8 +110,8 @@ static int raisr_opencl_filter_frame(AVFilterLink *inlink, AVFrame *input)
         vdt_in[p].bitShift = desc->comp[p].shift;
         // fill in the output video data type structure
         vdt_out[p].pData = output->data[p];
-        vdt_out[p].width = input->width * ctx->ratio / wsub;
-        vdt_out[p].height = input->height * ctx->ratio / hsub;
+        vdt_out[p].width = output->width / wsub;
+        vdt_out[p].height = output->height / hsub;
         vdt_out[p].step = output->linesize[p];
         vdt_out[p].bitShift = desc->comp[p].shift;
     }
@@ -195,6 +196,9 @@ static int raisr_opencl_config_output(AVFilterLink *outlink)
 
     ctx->ocf.output_width = inlink->w * ctx->ratio;
     ctx->ocf.output_height = inlink->h * ctx->ratio;
+    // resolution of output needs to be even due to encoder support only even resolution
+    ctx->ocf.output_width = ctx->ocf.output_width % 2 == 0 ? ctx->ocf.output_width : ctx->ocf.output_width - 1;
+    ctx->ocf.output_height = ctx->ocf.output_height % 2 == 0 ? ctx->ocf.output_height : ctx->ocf.output_height - 1;
 
     err = ff_opencl_filter_config_output(outlink);
     if (err < 0)
