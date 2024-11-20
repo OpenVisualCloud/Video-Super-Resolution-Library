@@ -211,6 +211,9 @@ static int config_props_output(AVFilterLink *outlink)
 
     outlink->w = inlink0->w * raisr->ratio;
     outlink->h = inlink0->h * raisr->ratio;
+    // resolution of output needs to be even due to encoder support only even resolution
+    outlink->w = outlink->w % 2 == 0 ? outlink->w : outlink->w - 1 ;
+    outlink->h = outlink->h % 2 == 0 ? outlink->h : outlink->h - 1;
 
     return 0;
 }
@@ -224,6 +227,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
     RNLERRORTYPE ret;
     VideoDataType vdt_in[3] = { 0 };
     VideoDataType vdt_out[3] = { 0 };
+    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(outlink->format);
 
     av_log(ctx, AV_LOG_VERBOSE, "Frame\n");
 
@@ -263,10 +267,15 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         vdt_in[p].height = plane->height;
         vdt_in[p].step = in->linesize[p];
 
+        // Get horziontal and vertical power of 2 factors
+        int vsub = p ? desc->log2_chroma_h : 0;
+        int hsub = p ? desc->log2_chroma_w : 0;
+
         // fill in the output video data type structure
         vdt_out[p].pData = out->data[p];
-        vdt_out[p].width = plane->width * raisr->ratio;
-        vdt_out[p].height = plane->height * raisr->ratio;
+        // Determine the width and height of this plane/channel
+        vdt_out[p].width = AV_CEIL_RSHIFT(out->width, hsub);
+        vdt_out[p].height = AV_CEIL_RSHIFT(out->height, vsub);
         vdt_out[p].step = out->linesize[p];
     }
     if (raisr->framecount == 0)
