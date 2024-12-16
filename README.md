@@ -8,9 +8,9 @@ Enhanced RAISR is provided as an FFmpeg plugin inside of a Docker container(Dock
 ![image](https://github.com/user-attachments/assets/e28b52c2-67c7-44a9-a66f-df8b355735f9)
 
 ## Latest News 
-- July 2024 : Release performance of the alogorithm and pipeline on Intel® Xeon® Scalable processor as well as EC2 Intel instances deployed on AWS Cloud. See details at "performance.md".  
+- July 2024 : Release performance of the alogorithm and pipeline on Intel® Xeon® Scalable processor as well as EC2 Intel instances deployed on AWS Cloud. See details at [performance.md](./docs/performance.md).  
 
--	April 2024: Intel Library for Video Super Resolution algorithm now available on AWS. See the repository for details on how video super resolution works on the AWS service at https://github.com/aws-samples/video-super-resolution-too . Technical details including video quality comparisons and performance information are available in a joint Intel / AWS white paper available at https://www.intel.com/content/www/us/en/content-details/820769/aws-compute-video-super-resolution-powered-by-the-intel-library-for-video-super-resolution.html 
+- April 2024: Intel Library for Video Super Resolution algorithm now available on AWS. See the repository for details on how video super resolution works on the AWS service at https://github.com/aws-samples/video-super-resolution-tool. Technical details including video quality comparisons and performance information are available in a joint Intel / AWS white paper available at https://www.intel.com/content/www/us/en/content-details/820769/aws-compute-video-super-resolution-powered-by-the-intel-library-for-video-super-resolution.html 
 
 - Feb 2024 : AWS and Intel announced collaboration to release Intel Library for VSR on AWS Cloud at the Mile High Video 2024 conference, technical details available at  https://dl.acm.org/doi/10.1145/3638036.3640290  
 
