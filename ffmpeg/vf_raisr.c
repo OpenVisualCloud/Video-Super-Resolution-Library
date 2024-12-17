@@ -73,6 +73,7 @@ typedef struct RaisrContext
     struct plane_info inplanes[3];
     int nb_planes;
     int framecount;
+    int evenoutput;
 } RaisrContext;
 
 #define OFFSET(x) offsetof(RaisrContext, x)
@@ -89,6 +90,7 @@ static const AVOption raisr_options[] = {
     {"asm", "x86 asm type: (avx512fp16, avx512, avx2 or opencl)", OFFSET(asmStr), AV_OPT_TYPE_STRING, {.str = "avx512fp16"}, 0, 0, FLAGS},
     {"platform", "select the platform", OFFSET(platform), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, FLAGS},
     {"device", "select the device", OFFSET(device), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, FLAGS},
+    {"evenoutput", "make output size as even number (0: ignore, 1: subtract 1px if needed)", OFFSET(evenoutput), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 1, FLAGS},
     {NULL}};
 
 AVFILTER_DEFINE_CLASS(raisr);
@@ -211,9 +213,12 @@ static int config_props_output(AVFilterLink *outlink)
 
     outlink->w = inlink0->w * raisr->ratio;
     outlink->h = inlink0->h * raisr->ratio;
-    // resolution of output needs to be even due to encoder support only even resolution
-    outlink->w = outlink->w % 2 == 0 ? outlink->w : outlink->w - 1 ;
-    outlink->h = outlink->h % 2 == 0 ? outlink->h : outlink->h - 1;
+
+    // resolution of output needs to be even due to some encoders support only even resolution
+    if (raisr->evenoutput == 1) {
+        outlink->w -= outlink->w % 2;
+        outlink->h -= outlink->h % 2;
+    }
 
     return 0;
 }

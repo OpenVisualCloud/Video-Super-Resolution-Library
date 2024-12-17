@@ -43,6 +43,7 @@ typedef struct RaisrOpenCLContext {
     int mode;
     RangeType range;
     enum AVPixelFormat sw_format;
+    int evenoutput;
 } RaisrOpenCLContext;
 
 
@@ -196,9 +197,10 @@ static int raisr_opencl_config_output(AVFilterLink *outlink)
 
     ctx->ocf.output_width = inlink->w * ctx->ratio;
     ctx->ocf.output_height = inlink->h * ctx->ratio;
-    // resolution of output needs to be even due to encoder support only even resolution
-    ctx->ocf.output_width = ctx->ocf.output_width % 2 == 0 ? ctx->ocf.output_width : ctx->ocf.output_width - 1;
-    ctx->ocf.output_height = ctx->ocf.output_height % 2 == 0 ? ctx->ocf.output_height : ctx->ocf.output_height - 1;
+    if (ctx->evenoutput == 1) {
+        ctx->ocf.output_width -= ctx->ocf.output_width % 2;
+        ctx->ocf.output_height -= ctx->ocf.output_height % 2;
+    }
 
     err = ff_opencl_filter_config_output(outlink);
     if (err < 0)
@@ -229,6 +231,7 @@ static const AVOption raisr_opencl_options[] = {
         { "CountOfBitsChanged", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = CountOfBitsChanged   },   INT_MIN, INT_MAX, FLAGS, "blending" },
     {"passes", "passes to run (1: one pass, 2: two pass)", OFFSET(passes), AV_OPT_TYPE_INT, {.i64 = 1}, 1, 2, FLAGS},
     {"mode", "mode for two pass (1: upscale in 1st pass, 2: upscale in 2nd pass)", OFFSET(mode), AV_OPT_TYPE_INT, {.i64 = 1}, 1, 2, FLAGS},
+    {"evenoutput", "make output size as even number (0: ignore, 1: subtract 1px if needed)", OFFSET(evenoutput), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 1, FLAGS},
     {NULL}
 };
 
