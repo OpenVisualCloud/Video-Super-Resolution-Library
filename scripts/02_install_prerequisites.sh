@@ -14,11 +14,11 @@ SCRIPT_DIR="$(readlink -f "$(dirname -- "${BASH_SOURCE[0]}")")"
 REPOSITORY_DIR="$(readlink -f "${SCRIPT_DIR}/../")"
 . "${SCRIPT_DIR}/common.sh"
 
-prompt Starting script execution "${BASH_SOURCE[0]}"
+log_info Starting script execution "${BASH_SOURCE[0]}"
 package_path=$1
 if [ -z "$package_path" ];then
-    error Usage:
-    error \t02_install_prerequisites.sh /xxx/raisr.tar.gz
+    log_error "Usage:"
+    log_error "\t02_install_prerequisites.sh /xxx/raisr.tar.gz"
     exit 1
 fi
 
@@ -34,7 +34,7 @@ echo "source /opt/intel/oneapi/ipp/latest/env/vars.sh" | tee -a ~/.bash_profile
 tar zxf ./cmake-3.14.0.tar.gz
 cd cmake-3.14.0 && \
     ./bootstrap --prefix=/usr/local && \
-    make -j $(nproc) && \
+    make -j "$(nproc)" && \
     sudo make install
 cd -
 
@@ -43,7 +43,7 @@ tar xjf ./nasm-2.15.05.tar.bz2 && \
     cd nasm-2.15.05 && \
     ./autogen.sh && \
     ./configure --prefix=/usr/local --libdir=/usr/local/lib && \
-    make -j $(nproc) && \
+    make -j "$(nproc)" && \
     sudo make install
 cd -
 
@@ -51,7 +51,7 @@ cd -
 cd x264 && \
     ./configure --prefix=/usr/local --libdir=/usr/local/lib \
     --enable-shared && \
-    make -j $(nproc) && \
+    make -j "$(nproc)" && \
     sudo make install
 cd -
 
@@ -59,7 +59,7 @@ cd -
 tar xzf ./3.4.tar.gz
 cd x265-3.4/build/linux && \
     cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DHIGH_BIT_DEPTH=ON ../../source && \
-    make -j $(nproc) && \
+    make -j "$(nproc)" && \
     sudo make install
 cd -
 
@@ -72,4 +72,4 @@ rm -rf ./x264
 rm -rf ./x265-3.4
 rm -rf ./cmake-3.14.0
 rm -rf ./nasm-2.15.05
-prompt Finished script execution "${BASH_SOURCE[0]}"
+log_info Finished script execution "${BASH_SOURCE[0]}"

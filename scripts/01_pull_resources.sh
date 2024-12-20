@@ -10,7 +10,7 @@ SCRIPT_DIR="$(readlink -f "$(dirname -- "${BASH_SOURCE[0]}")")"
 REPOSITORY_DIR="$(readlink -f "${SCRIPT_DIR}/../")"
 . "${SCRIPT_DIR}/common.sh"
 
-prompt Starting script execution "${BASH_SOURCE[0]}"
+log_info Starting script execution "${BASH_SOURCE[0]}"
 raisr_folder="${raisr_folder:-raisr}"
 
 mkdir -p "${raisr_folder}" "/tmp/Video-Super-Resolution-Library"
@@ -32,14 +32,14 @@ done
 # git clone https://github.com/OpenVisualCloud/Video-Super-Resolution-Library.git
 mv /tmp/Video-Super-Resolution-Library .
 if [ ! -d "Video-Super-Resolution-Library" ];then
-    error "Failed to pull source code of Video-Super-Resolution-Library!"
+    log_error "Failed to pull source code of Video-Super-Resolution-Library!"
     exit 1
 fi
 
 # pull cmake 3.14
 wget --tries=5 --progress=dot:giga https://cmake.org/files/v3.14/cmake-3.14.0.tar.gz
 if [ ! -f "cmake-3.14.0.tar.gz" ];then
-    error "Failed to download Cmake 3.14!"
+    log_error "Failed to download Cmake 3.14!"
     exit 1
 fi
 
@@ -47,7 +47,7 @@ fi
 # pull ffmpeg
 git clone https://github.com/FFmpeg/FFmpeg ffmpeg
 if [ ! -d "ffmpeg" ];then
-    error "Failed to pull source code of ffmpeg!"
+    log_error "Failed to pull source code of ffmpeg!"
     exit 1
 fi
 
@@ -59,38 +59,38 @@ popd
 # pull nasm used for build x264
 wget --tries=5 --progress=dot:giga https://www.nasm.us/pub/nasm/releasebuilds/2.15.05/nasm-2.15.05.tar.bz2
 if [ ! -f "nasm-2.15.05.tar.bz2" ];then
-    error "Failed to download nasm!"
+    log_log_error "Failed to download nasm!"
     exit 1
 fi
 
 # pull x264
 git clone https://github.com/mirror/x264 -b stable --depth 1
 if [ ! -d "x264" ];then
-    error "Failed to pull source code of x264!"
+    log_error "Failed to pull source code of x264!"
     exit 1
 fi
 
 # pull x265
 wget --tries=5 --progress=dot:giga https://github.com/videolan/x265/archive/3.4.tar.gz
 if [ ! -f "3.4.tar.gz" ];then
-    error "Failed to download source code of x265!"
+    log_error "Failed to download source code of x265!"
     exit 1
 fi
 
 # pull IPP
 wget --tries=5 --progress=dot:giga "${ipp_offline_uri}"
 if [ ! -f "${ipp_offline_uri##*/}" ];then
-    error "Failed to download IPP package!"
+    log_error "Failed to download IPP package!"
     exit 1
 fi
 
-prompt "Successfully downloaded all these resources!"
+log_info "Successfully downloaded all these resources!"
 
 if [ "$package_flag" == "true" ]; then
     cd ..
     tar -zcvf ./$raisr_folder.tar.gz ./$raisr_folder
     if [ ! -f "$raisr_folder.tar.gz" ];then
-        error "Failed to package these resources to $raisr_folder.tar.gz!"
+        log_error "Failed to package these resources to $raisr_folder.tar.gz!"
         exit 1
     else
         echo "Successfully packaged these resources to $raisr_folder.tar.gz!"
@@ -99,4 +99,4 @@ if [ "$package_flag" == "true" ]; then
 fi
 
 popd
-prompt Finished script execution "${BASH_SOURCE[0]}"
+log_info Finished script execution "${BASH_SOURCE[0]}"

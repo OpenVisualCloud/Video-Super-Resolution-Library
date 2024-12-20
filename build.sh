@@ -3,15 +3,19 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright 2024-2025 Intel Corporation
 
+# Fails the script if any of the commands error (Other than if and some others)
 set -ex -o pipefail
+
+SCRIPT_DIR="$(readlink -f "$(dirname -- "${BASH_SOURCE[0]}")")"
+. "${SCRIPT_DIR}/scripts/common.sh"
+nproc="${nproc:-$(nproc)}"
 
 # Helpful when copying and pasting functions and debuging.
 if printf '%s' "$0" | grep -q '\.sh'; then
     IN_SCRIPT=true
 fi
 
-# Fails the script if any of the commands error (Other than if and some others)
-set -e
+
 
 cd_safe() {
     if (cd "$1"); then
@@ -26,7 +30,7 @@ cd_safe() {
 # Usage: build [test]
 build() (
     build_type=Release
-    echo "Create folder: build, build type: $build_type"
+    log_info "Create folder: build, build type: $build_type"
     mkdir -p build > /dev/null 2>&1
     cd_safe build
 
@@ -38,8 +42,8 @@ build() (
     #cmake .. -DCMAKE_BUILD_TYPE="RelWithDebInfo" $CMAKE_EXTRA_FLAGS "$@"
 
     if [ -f Makefile ]; then
-        # make -j
-        make install -j
+        make -j "${nproc}"
+        make install -j "${nproc}"
     fi
 
     cd ..
@@ -80,4 +84,4 @@ else
 fi
 export CXX
 
-build $@
+build "$@"

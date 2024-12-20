@@ -16,12 +16,10 @@ ENV TZ="Europe/Warsaw"
 ARG ONEAPI_LINK="https://registrationcenter-download.intel.com/akdlm/IRC_NAS/046b1402-c5b8-4753-9500-33ffb665123f/l_ipp_oneapi_p_2021.10.1.16_offline.sh"
 ARG NASM_RPM_LINK="https://rpmfind.net/linux/centos-stream/9-stream/CRB/x86_64/os/Packages/nasm-2.15.03-7.el9.x86_64.rpm"
 
-WORKDIR "${PREFIX}"
 COPY docker/Xeon/yum/oneAPI.repo /etc/yum.repos.d
-COPY . ${DL_PREFIX}/Video-Super-Resolution-Library
 
 SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
-WORKDIR "${DL_PREFIX}/ffmpeg"
+WORKDIR "${PREFIX}"
 RUN yum install -y \
       wget bash git make cmake \
       glibc bzip2 \
@@ -33,10 +31,11 @@ RUN yum install -y \
       gcc-toolset-12-binutils && \
     wget --tries=5 --progress=dot:giga ${NASM_RPM_LINK} && \
     yum localinstall -y nasm-2.15.03-7.el9.x86_64.rpm && \
-    rm -f nasm-2.15.03-7.el9.x86_64.rpm
-
-RUN yum group list && \
-    yum group install "Development Tools" -y
+    rm -f nasm-2.15.03-7.el9.x86_64.rpm && \
+    yum group list && \
+    yum group install "Development Tools" -y && \
+    yum clean all && \
+    rm -rf /var/cache/yum
 
 WORKDIR ${DL_PREFIX}/libx264
 RUN git clone https://github.com/mirror/x264 -b stable --depth 1 . && \
@@ -60,7 +59,9 @@ ENV LD_LIBRARY_PATH="/opt/build/lib:/opt/build/lib64:/usr/local/lib:/usr/local/l
 ENV LIBRARY_PATH="${IPPROOT}/lib/intel64"
 
 WORKDIR ${DL_PREFIX}/Video-Super-Resolution-Library
-RUN curl -Lf https://github.com/ffmpeg/ffmpeg/archive/${FFMPEG_COMMIT_ID}.tar.gz | \
+COPY . ${DL_PREFIX}/Video-Super-Resolution-Library
+RUN mkdir -p "${DL_PREFIX}/ffmpeg" && \
+    curl -Lf https://github.com/ffmpeg/ffmpeg/archive/${FFMPEG_COMMIT_ID}.tar.gz | \
       tar -zx --strip-components=1 -C "${DL_PREFIX}/ffmpeg" && \
     git -C "${DL_PREFIX}/ffmpeg" apply "${DL_PREFIX}/Video-Super-Resolution-Library/ffmpeg/"*.patch && \
     cp "${DL_PREFIX}/Video-Super-Resolution-Library/ffmpeg/vf_raisr"*.c "${DL_PREFIX}/ffmpeg/libavfilter" && \
@@ -85,17 +86,9 @@ RUN ./configure \
 ENV LIBIPP="/opt/intel/oneapi/ipp/latest/lib/intel64/"
 WORKDIR ${PREFIX}/usr/local/lib
 RUN ldd ${PREFIX}/bin/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} . && \
-    cp "${LIBIPP}/libippsk0.so.10.11" . && \
-    cp "${LIBIPP}/libippsn0.so.10.11" . && \
-    cp "${LIBIPP}/libippsl9.so.10.11" . && \
-    cp "${LIBIPP}/libippse9.so.10.11" . && \
-    cp "${LIBIPP}/libippsy8.so.10.11" . && \
-    cp "${LIBIPP}/libippsn8.so.10.11" . && \
-    cp "${LIBIPP}/libippsm7.so.10.11" . && \
-    cp "${LIBIPP}/libippik0.so.10.11" . && \
     mv ${PREFIX}/bin ${PREFIX}/usr/local/ && \
     rm -rf ${PREFIX}/share ${PREFIX}/include ${PREFIX}/lib && \
-    LD_LIBRARY_PATH=${PREFIX}/usr/local/lib ${PREFIX}/usr/local/bin/ffmpeg -buildconf
+    LD_LIBRARY_PATH="${PREFIX}/usr/local/lib:${LIBIPP}" ${PREFIX}/usr/local/bin/ffmpeg -buildconf
 
 FROM quay.io/centos/centos:stream9 AS base
 
@@ -103,27 +96,42 @@ LABEL org.opencontainers.image.authors="milosz.linkiewicz@intel.com"
 LABEL org.opencontainers.image.url="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library"
 LABEL org.opencontainers.image.title="Intel® Library for Video Super Resolution"
 LABEL org.opencontainers.image.description="Intel® Library for Video Super Resolution. RAISR (Rapid and Accurate Image Super Resolution) algorithm implementation by Intel® Corporation, as FFmpeg plugin. Centos::stream9 image."
-LABEL org.opencontainers.image.documentation="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/master/README.md"
+LABEL org.opencontainers.image.documentation="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/main/README.md"
 LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.vendor="Intel® Corporation"
 LABEL org.opencontainers.image.licenses="BSD 3-Clause License"
 
 ARG PREFIX=/opt/build
 ENV TZ=Europe/Warsaw
-ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
-WORKDIR /opt/raisrfolder
 
+ENV IPP_TARGET_ARCH="intel64"
+ENV IPPROOT="/opt/intel/oneapi/redist"
+ENV LIBIPP="${IPPROOT}/lib"
+ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:${LIBIPP}"
+
+COPY docker/Xeon/yum/oneAPI.repo /etc/yum.repos.d
+SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
+WORKDIR /opt/raisrfolder
 RUN yum install -y \
-      sudo bash git make
+      sudo \
+      bash \
+      make \
+      intel-oneapi-runtime-ipp && \
+    yum clean all && \
+    rm -rf /var/cache/yum && \
+    groupadd -g 2110 vfio && \
+    useradd -m -s /bin/bash -G vfio -u 1002 raisr && \
+    usermod -aG wheel raisr
 
 COPY --chown=raisr:raisr filters_1.5x /opt/raisrfolder/filters_1.5x
 COPY --chown=raisr:raisr filters_2x   /opt/raisrfolder/filters_2x
 COPY --chown=raisr:raisr --from=build ${PREFIX} /
 
 RUN ln -s /usr/local/bin/ffmpeg /opt/raisrfolder/ffmpeg && \
+    ldconfig && \
+    /usr/local/bin/ffmpeg -buildconf && \
     ffmpeg -h filter=raisr
 
-# x264-libs # x265-libs
 # USER "raisr"
 HEALTHCHECK --interval=30s --timeout=5s CMD ps aux | grep "ffmpeg" || exit 1
 

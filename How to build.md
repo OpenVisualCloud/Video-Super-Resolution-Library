@@ -15,7 +15,7 @@ To build this project you will need:
 
 We provide 3 ways to build the Intel VSR with FFmpeg environment:
 - build docker images with dockerfiles(both CPU and GPU).
-- build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/master/scripts)(only for CPU).
+- build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/main/scripts)(only for CPU).
 - build manually(both CPU and GPU).
 
 # Build Docker Images.
@@ -42,15 +42,15 @@ The usage of the script is as follows
 If the image is built successfully, you can find a docker image named `raisr-xeon:ubuntu22.04` or `raisr-xeon:ubuntu18.04` or `raisr-xeon:centos7.9` or `raisr-flex:ubuntu22.04` with command `docker images`
 Please note it needs to add `--privileged  --device /dev/dri` option to access GPU hardware in docker container during run raisr-flex docker container.
 
-# Build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/master/scripts)
+# Build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/main/scripts)
 If the user would prefer not to use Docker, you can follow the steps below to setup enviroment: \
     `cd Video-Super-Resolution-Library/scripts` \
     `./01_pull_resources.sh` \
     `./02_install_prerequisites.sh /xxx/raisr.tar.gz` \
     `./03_build_raisr_ffmpeg.sh /xxx/raisr/Video-Super-Resolution-Library`
-- [01_pull_resources.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/master/scripts/01_pull_resources.sh): Download the resources used for build Intel Library for VSR and FFmpeg(cmake 3.14, nasm, x264, x265, ipp, Intel Library for VSR and FFmpeg) and package these resource to      raisr.tar.gz.
-- [02_install_prerequisites.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/master/scripts/02_install_prerequisites.sh): Extract the tarball raisr.tar.gz of resources and build and install the libraries required by building Intel Library for VSR and FFmpeg.
-- [03_build_raisr_ffmpeg.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/master/scripts/03_build_raisr_ffmpeg.sh): Build Intel Library for VSR and FFmpeg.
+- [01_pull_resources.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/main/scripts/01_pull_resources.sh): Download the resources used for build Intel Library for VSR and FFmpeg(cmake 3.14, nasm, x264, x265, ipp, Intel Library for VSR and FFmpeg) and package these resource to      raisr.tar.gz.
+- [02_install_prerequisites.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/main/scripts/02_install_prerequisites.sh): Extract the tarball raisr.tar.gz of resources and build and install the libraries required by building Intel Library for VSR and FFmpeg.
+- [03_build_raisr_ffmpeg.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/main/scripts/03_build_raisr_ffmpeg.sh): Build Intel Library for VSR and FFmpeg.
 
 # Build manually following the steps below
 ## Install Intel IPP

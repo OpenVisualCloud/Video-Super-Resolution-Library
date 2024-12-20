@@ -14,11 +14,11 @@ set -eo pipefail
 # force_no_intel_logo=1
 
 SCRIPT_DIR="$(readlink -f "$(dirname -- "${BASH_SOURCE[0]}")")"
-. ${SCRIPT_DIR}/scripts/common.sh
+. "${SCRIPT_DIR}/scripts/common.sh"
 
 [ -z "${force_no_intel_logo}" ] && print_logo
 
-prompt Starting script execution "${BASH_SOURCE[0]}"
+log_info Starting script execution "${BASH_SOURCE[0]}"
 OS="${OS:-ubuntu}"
 VERSION="${VERSION:-22.04}"
 PLATFORM="${PLATFORM:-xeon}"
@@ -26,8 +26,8 @@ PLATFORM="${PLATFORM:-xeon}"
 if [ -n "$1" ]; then
     case "$(printf %s "$1" | tr '[:upper:]' '[:lower:]')" in
         xeon) PLATFORM="xeon" ;;
-        flex) PLATFORM="flex" OS="ubuntu" VERSION="22.04" ;;
-        *) error "Platform $1 is not yet supported. Use: [xeon, flex]"; exit 1
+        flex) PLATFORM="flex"; OS="ubuntu"; VERSION="22.04" ;;
+        *) log_error "Platform $1 is not yet supported. Use: [xeon, flex]"; exit 1
     esac
 	shift
 fi
@@ -35,9 +35,9 @@ fi
 if [ -n "$1" ]; then
     case "$(printf %s "$1" | tr '[:upper:]' '[:lower:]')" in
         ubuntu) OS="ubuntu" ;;
-        centos) OS="centos" VERSION="stream9" ;;
-        rocky|rockylinux) OS="rockylinux" VERSION="9-mini" ;;
-        *) error "Linux distributtion $1 is not yet supported. Use: [ubuntu, centos, rocky]"; exit 1
+        centos) OS="centos"; VERSION="9" ;;
+        rocky|rockylinux) OS="rockylinux"; VERSION="9-mini" ;;
+        *) log_error "Linux distributtion $1 is not yet supported. Use: [ubuntu, centos, rocky]"; exit 1
     esac
 	shift
 fi
@@ -46,21 +46,22 @@ if [ -n "$1" ]; then
     if [ $OS = "ubuntu" ]; then
         case "$1" in
             18.04|20.04|22.04) VERSION="$1" ;;
-            *) error "Ubuntu release $1 is not yet supported. Use: [18.04, 20.04, 22.04]"; exit 1
+            *) log_error "Ubuntu release $1 is not yet supported. Use: [18.04, 20.04, 22.04]"; exit 1
         esac
 		DEFAULT_CACHE_REGISTRY="${DEFAULT_CACHE_REGISTRY:-docker.io}"
     fi
     if [ $OS = "centos" ]; then
+        VERSION="9"
         case "$1" in
             9|stream9) VERSION="9" ;;
-            *) error "CentOS release $1 is not yet supported, Use: [stream9]"; exit 1
+            *) log_error "CentOS release $1 is not yet supported, Use: [stream9]"; exit 1
         esac
 		DEFAULT_CACHE_REGISTRY="${DEFAULT_CACHE_REGISTRY:-quay.io}"
     fi
     if [ $OS = "rockylinux" ]; then
         case "$1" in
             9|9-mini) VERSION="9-mini" ;;
-            *) error "RockyLinux release $1 is not yet supported, Use: [9, 9-mini]"; exit 1
+            *) log_error "RockyLinux release $1 is not yet supported, Use: [9, 9-mini]"; exit 1
         esac
 		DEFAULT_CACHE_REGISTRY="${DEFAULT_CACHE_REGISTRY:-docker.io}"
     fi
@@ -76,15 +77,15 @@ fi
 
 if [[ ! $(grep -q "\.intel.com" <<< "${no_proxy}${NO_PROXY}") ]]; then
 	if [ -z "${force_no_env_unset}" ]; then
-	    prompt "Unsetting no_proxy and NO_PROXY env values for docker buildx build."
-	    prompt "Disable this behavior by setting force_no_env_unset env variable"
-        prompt "to any non-empty value."
-	    prompt "\tExample: force_no_env_unset=1"
+	    log_info "Unsetting no_proxy and NO_PROXY env values for docker buildx build."
+	    log_info "Disable this behavior by setting force_no_env_unset env variable"
+        log_info "to any non-empty value."
+	    log_info "\tExample: force_no_env_unset=1"
 	    unset no_proxy
 	    unset NO_PROXY
 	else
-		prompt Non-empty force_no_env_unset flag is set.
-        prompt Forcing no-unset behavior.
+		log_info Non-empty force_no_env_unset flag is set.
+        log_info Forcing no-unset behavior.
 	fi
 fi
 
@@ -102,6 +103,6 @@ docker buildx build \
 	-t "${IMAGE_REGISTRY}/raisr/raisr-${PLATFORM}:${IMAGE_TAG}" \
 	--build-arg IMAGE_REGISTRY="${IMAGE_REGISTRY}" \
     --build-arg IMAGE_CACHE_REGISTRY="${IMAGE_CACHE_REGISTRY}" \
-	$@ "${SCRIPT_DIR}"
+	"$@" "${SCRIPT_DIR}"
 set +x
-prompt Finished script execution "${BASH_SOURCE[0]}"
+log_info Finished script execution "${BASH_SOURCE[0]}"

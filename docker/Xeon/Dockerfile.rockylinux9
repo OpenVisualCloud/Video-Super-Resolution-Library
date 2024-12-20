@@ -98,7 +98,7 @@ LABEL org.opencontainers.image.authors="milosz.linkiewicz@intel.com"
 LABEL org.opencontainers.image.url="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library"
 LABEL org.opencontainers.image.title="Intel® Library for Video Super Resolution"
 LABEL org.opencontainers.image.description="Intel® Library for Video Super Resolution. RAISR (Rapid and Accurate Image Super Resolution) algorithm implementation by Intel® Corporation, as FFmpeg plugin. Centos::stream9 image."
-LABEL org.opencontainers.image.documentation="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/master/README.md"
+LABEL org.opencontainers.image.documentation="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/main/README.md"
 LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.vendor="Intel® Corporation"
 LABEL org.opencontainers.image.licenses="BSD 3-Clause License"
@@ -114,11 +114,11 @@ RUN yum install -y \
         vim \
         bash \
         intel-oneapi-runtime-ipp && \
-      yum clean all && \
-      rm -rf /var/cache/yum && \
-      groupadd -g 2110 vfio && \
-      useradd -m -s /bin/bash -G vfio -u 1002 raisr && \
-      usermod -aG wheel raisr
+    yum clean all && \
+    rm -rf /var/cache/yum && \
+    groupadd -g 2110 vfio && \
+    useradd -m -s /bin/bash -G vfio -u 1002 raisr && \
+    usermod -aG wheel raisr
 
 COPY --chown=raisr:raisr filters_1.5x /opt/raisrfolder/filters_1.5x
 COPY --chown=raisr:raisr filters_2x   /opt/raisrfolder/filters_2x

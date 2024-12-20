@@ -13,7 +13,7 @@ SCRIPT_DIR="$(readlink -f "$(dirname -- "${BASH_SOURCE[0]}")")"
 REPOSITORY_DIR="$(readlink -f "${SCRIPT_DIR}/../")"
 . "${SCRIPT_DIR}/common.sh"
 
-prompt Starting script execution "${BASH_SOURCE[0]}"
+log_info Starting script execution "${BASH_SOURCE[0]}"
 raisr_path=$1
 
 if [ -z "$raisr_path" ];then
@@ -45,19 +45,19 @@ cp "${raisr_path}/ffmpeg/vf_raisr.c" libavfilter/
     --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' \
     --enable-cross-compile
 make clean
-make -j $(nproc)
+make -j "$(nproc)"
 make install
 popd
 
 cp -r "${raisr_path}/filters"* .
 
-prompt \tTo run the library you can do the following:
-prompt
-prompt \t\tcd raisr/ffmpeg
-prompt \t\t./ffmpeg -y -i /input_files/input.mp4 -vf raisr=threadcount=20 -pix_fmt yuv420p /output_files/out.yuv
-prompt
-prompt And you can see more use cases in README file of Video-Super-Resolution-Library.
-prompt \tNotice: If you get "ffmpeg: error while loading shared libraries", try first doing:
-prompt \t\texport LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib/intel64:/usr/local/lib:${LD_LIBRARY_PATH}"
+log_info "\tTo run the library you can do the following:"
+log_info
+log_info "\t\tcd raisr/ffmpeg"
+log_info "\t\t./ffmpeg -y -i /input_files/input.mp4 -vf raisr=threadcount=20 -pix_fmt yuv420p /output_files/out.yuv"
+log_info
+log_info And you can see more use cases in README file of Video-Super-Resolution-Library.
+log_info "\tNotice: If you get \"ffmpeg: error while loading shared libraries\", try first doing:"
+log_info "\t\texport LD_LIBRARY_PATH=\"/opt/intel/oneapi/ipp/latest/lib/intel64:/usr/local/lib:${LD_LIBRARY_PATH}\""
 
-prompt Finished script execution "${BASH_SOURCE[0]}"
+log_info "Finished script execution \"${BASH_SOURCE[0]}\""
