@@ -1,4 +1,10 @@
-#!/bin/sh
+#!/bin/bash
+
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright 2024-2025 Intel Corporation
+
+set -ex -o pipefail
+
 # Helpful when copying and pasting functions and debuging.
 if printf '%s' "$0" | grep -q '\.sh'; then
     IN_SCRIPT=true
@@ -33,7 +39,7 @@ build() (
 
     if [ -f Makefile ]; then
         # make -j
-	    make install -j
+        make install -j
     fi
 
     cd ..

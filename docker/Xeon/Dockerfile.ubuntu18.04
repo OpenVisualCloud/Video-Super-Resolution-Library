@@ -1,0 +1,125 @@
+# syntax=docker/dockerfile:1
+
+# Copyright (c) 2020-2021 Intel Corporation.
+# SPDX-License-Identifier: BSD-3-Clause
+
+# use Ubuntu 18.04 with Intel IPP
+ARG IMAGE_CACHE_REGISTRY=docker.io
+ARG IMAGE_NAME=intel/oneapi-basekit:devel-ubuntu18.04
+FROM ${IMAGE_CACHE_REGISTRY}/${IMAGE_NAME} AS build
+
+ARG PREFIX=/opt/build
+ARG DL_PREFIX=/opt
+
+ARG LD_LIBRARY_PATH="/opt/build/lib:/opt/build/lib64:${LD_LIBRARY_PATH}"
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV TZ="Europe/Warsaw"
+ARG FFMPEG_COMMIT_ID="n6.1.1"
+
+WORKDIR ${DL_PREFIX}/ffmpeg
+SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
+RUN rm /etc/apt/sources.list.d/oneAPI.list && \
+    add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
+    apt-get update --fix-missing && \
+    apt-get full-upgrade -y && \
+    apt-get install --no-install-recommends -y \
+      git tar ca-certificates \
+      libx265-dev \
+      libx264-dev \
+      zlib1g-dev \
+      nasm \
+      gcc-9 \
+      g++-9 && \
+    update-alternatives \
+      --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 \
+      --slave /usr/bin/g++ g++ /usr/bin/g++-9 \
+      --slave /usr/bin/gcov gcov /usr/bin/gcov-9 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl -Lf https://github.com/ffmpeg/ffmpeg/archive/${FFMPEG_COMMIT_ID}.tar.gz | \
+      tar -zx --strip-components=1 -C "${DL_PREFIX}/ffmpeg"
+
+
+COPY . ${DL_PREFIX}/Video-Super-Resolution-Library
+
+WORKDIR ${DL_PREFIX}/Video-Super-Resolution-Library
+RUN git -C "${DL_PREFIX}/ffmpeg" apply "${DL_PREFIX}/Video-Super-Resolution-Library/ffmpeg/"*.patch && \
+    cp "${DL_PREFIX}/Video-Super-Resolution-Library/ffmpeg/vf_raisr"*.c "${DL_PREFIX}/ffmpeg/libavfilter" && \
+    ./build.sh
+
+WORKDIR ${DL_PREFIX}/ffmpeg
+RUN ./configure \
+      --enable-libipp \
+      --extra-cflags=-fopenmp \
+      --extra-ldflags=-fopenmp \
+      --enable-gpl \
+      --enable-libx264 \
+      --enable-libx265 \
+      --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm -lintlc -lsvml' \
+      --enable-cross-compile \
+      --prefix="${PREFIX}"  && \
+    make clean && make -j $(nproc) && \
+    make install
+
+ENV LIBIPP="/opt/intel/oneapi/ipp/latest/lib/intel64"
+WORKDIR ${PREFIX}/usr/local/lib
+RUN ldd ${PREFIX}/bin/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} . && \
+    cp ${LIBIPP}/libippsk0.so.10.5 . && \
+    cp ${LIBIPP}/libippsn0.so.10.5 . && \
+    cp ${LIBIPP}/libippsl9.so.10.5 . && \
+    cp ${LIBIPP}/libippse9.so.10.5 . && \
+    cp ${LIBIPP}/libippsy8.so.10.5 . && \
+    cp ${LIBIPP}/libippsn8.so.10.5 . && \
+    cp ${LIBIPP}/libippsm7.so.10.5 . && \
+    cp ${LIBIPP}/libippik0.so.10.5 . && \
+    cp ${LIBIPP}/libippil9.so.10.5 . && \
+    mv ${PREFIX}/bin ${PREFIX}/usr/local/ && \
+    LD_LIBRARY_PATH=${PREFIX}/usr/local/lib ${PREFIX}/usr/local/bin/ffmpeg -buildconf && \
+    rm -rf ${PREFIX}/include/ ${PREFIX}/share/ ${PREFIX}/lib/
+
+ARG IMAGE_CACHE_REGISTRY
+FROM ${IMAGE_CACHE_REGISTRY}/library/ubuntu:18.04@sha256:152dc042452c496007f07ca9127571cb9c29697f42acbfad72324b2bb2e43c98 AS base
+
+LABEL org.opencontainers.image.authors="milosz.linkiewicz@intel.com,xiaoxia.liang@intel.com"
+LABEL org.opencontainers.image.url="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library"
+LABEL org.opencontainers.image.title="Intel® Library for Video Super Resolution"
+LABEL org.opencontainers.image.description="Intel® Library for Video Super Resolution. RAISR (Rapid and Accurate Image Super Resolution) algorithm implementation by Intel® Corporation, as FFmpeg plugin. Ubuntu 18.04 Docker image."
+LABEL org.opencontainers.image.documentation="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/master/README.md"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.vendor="Intel® Corporation"
+LABEL org.opencontainers.image.licenses="BSD 3-Clause License"
+
+ARG PREFIX=/opt/build
+ENV TZ=Europe/Warsaw
+ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
+
+SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
+WORKDIR /opt/raisrfolder
+RUN apt-get update --fix-missing && \
+    apt-get full-upgrade -y && \
+    apt-get install --no-install-recommends -y \
+      sudo \
+      ca-certificates \
+      libx264-1* \
+      libx265-1* && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -g 2110 vfio && \
+    useradd -m -s /bin/bash -G vfio -u 1002 raisr && \
+    usermod -aG sudo raisr
+
+COPY --chown=raisr:raisr filters_1.5x /opt/raisrfolder/filters_1.5x
+COPY --chown=raisr:raisr filters_2x   /opt/raisrfolder/filters_2x
+COPY --chown=raisr:raisr --from=build ${PREFIX} /
+
+# Run ffmpeg and verify that the raisr filter is supported
+RUN ldconfig && \
+    ln -s /usr/local/bin/ffmpeg /opt/raisrfolder/ffmpeg && \
+    /opt/raisrfolder/ffmpeg -h filter=raisr
+
+USER "raisr"
+HEALTHCHECK --interval=30s --timeout=5s CMD ps aux | grep "ffmpeg" || exit 1
+
+SHELL ["/bin/bash", "-c"]
+CMD ["-h", "filter=raisr"]
+ENTRYPOINT [ "/opt/raisrfolder/ffmpeg" ]

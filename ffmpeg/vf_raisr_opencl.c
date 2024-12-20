@@ -21,8 +21,7 @@
 #include "raisr/RaisrHandler.h"
 #include "raisr/RaisrDefaults.h"
 #include "libavutil/opt.h"
-#include "avfilter.h"
-#include "internal.h"
+#include "video.h"
 #include "opencl.h"
 #include "libavutil/pixdesc.h"
 
