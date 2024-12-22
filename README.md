@@ -74,6 +74,15 @@ ffmpeg -init_hw_device vaapi=va -init_hw_device qsv=qs@va -init_hw_device opencl
 ffmpeg -init_hw_device vaapi=va -init_hw_device opencl=ocl@va -hwaccel vaapi -hwaccel_output_format vaapi -i input.264 -vf "hwmap=derive_device=opencl,format=opencl,raisr_opencl,hwmap=derive_device=vaapi:reverse=1:extra_hw_frames=16" -c:v hevc_vaapi output.mp4
 ```
 
+**Even output**
+
+There are certain codecs that support only even resolution, the `evenoutput` parameter will support users to choose whether to make the output an even number
+
+Set `evenoutput=1` to make output size as even number, the following command will get 632x632 output.
+```
+ffmpeg -i input.mp4 -an -vf scale=422x422,raisr=ratio=1.5:filterfolder=filters_1.5x/filters_highres:threadcount=1:evenoutput=1 output.mp4
+```
+It will keep the output resolution as the input resolution multiply by the upscaling ratio if set `evenoutput=0` or not set the parameter, will get 633x633 output with 422x422 input.
 
 ## To see help on the RAISR filter
 `./ffmpeg -h filter=raisr`
@@ -90,6 +99,7 @@ ffmpeg -init_hw_device vaapi=va -init_hw_device opencl=ocl@va -hwaccel vaapi -hw
       asm               <string>     ..FV....... x86 asm type: (avx512fp16, avx512, avx2 or opencl) (default "avx512fp16")
       platform          <int>        ..FV....... select the platform (from 0 to INT_MAX) (default 0)
       device            <int>        ..FV....... select the device (from 0 to INT_MAX) (default 0)
+      evenoutput        <int>        ..FV....... make output size as even number (0: ignore, 1: subtract 1px if needed) (from 0 to 1) (default 0)
 
 
 # How to Contribute
