@@ -21,17 +21,21 @@ COPY docker/Xeon/yum/oneAPI.repo /etc/yum.repos.d
 SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
 WORKDIR "${PREFIX}"
 RUN yum install -y \
-      wget bash git make cmake \
-      glibc bzip2 \
+      bash \
+      git \
+      make \
+      cmake \
+      glibc \
+      bzip2 \
       zlib-devel \
       texinfo \
       intel-oneapi-ipp-devel \
       gcc-toolset-12-gcc-c++ \
       gcc-toolset-12-gcc \
       gcc-toolset-12-binutils && \
-    wget --tries=5 --progress=dot:giga ${NASM_RPM_LINK} && \
-    yum localinstall -y nasm-2.15.03-7.el9.x86_64.rpm && \
-    rm -f nasm-2.15.03-7.el9.x86_64.rpm && \
+    curl -Lf "${NASM_RPM_LINK}" -o "${PREFIX}/nasm-2.15.03-7.el9.x86_64.rpm" && \
+    yum localinstall -y "${PREFIX}/nasm-2.15.03-7.el9.x86_64.rpm" && \
+    rm -f "${PREFIX}/nasm-2.15.03-7.el9.x86_64.rpm" && \
     yum group list && \
     yum group install "Development Tools" -y && \
     yum clean all && \

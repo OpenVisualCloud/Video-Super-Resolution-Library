@@ -28,15 +28,16 @@ COPY . ${DL_PREFIX}/Video-Super-Resolution-Library
 SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
 WORKDIR "${DL_PREFIX}/ffmpeg"
 RUN yum install -y \
-      wget bash \
-      git make \
+      bash \
+      git \
+      make \
       cmake \
       glibc \
       bzip2 \
       zlib-devel && \
-    wget --tries=5 --progress=dot:giga ${NASM_RPM_LINK} && \
-    yum localinstall -y nasm-2.15.03-7.el9.x86_64.rpm && \
-    rm -f nasm-2.15.03-7.el9.x86_64.rpm && \
+    curl -Lf "${NASM_RPM_LINK}" -o "${PREFIX}/nasm-2.15.03-7.el9.x86_64.rpm" && \
+    yum localinstall -y "${PREFIX}/nasm-2.15.03-7.el9.x86_64.rpm" && \
+    rm -f "${PREFIX}/nasm-2.15.03-7.el9.x86_64.rpm" && \
     yum group list && \
     yum group install "Development Tools" -y && \
     yum clean all && \
