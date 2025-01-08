@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dockerfiles: [ 'ubuntu22.04', 'ubuntu18.04', 'centos7.9' ]
+        dockerfiles: [ 'ubuntu22.04' ]
     permissions:
       actions: read
       contents: read
