@@ -58,24 +58,24 @@ RUN ./configure \
       --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm -lintlc -lsvml' \
       --enable-cross-compile \
       --prefix="${PREFIX}"  && \
-    make clean && make -j $(nproc) && \
+    make clean && make -j"$(nproc)" && \
     make install
 
 ENV LIBIPP="/opt/intel/oneapi/ipp/latest/lib/intel64"
 WORKDIR ${PREFIX}/usr/local/lib
-RUN ldd ${PREFIX}/bin/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} . && \
-    cp ${LIBIPP}/libippsk0.so.10.5 . && \
-    cp ${LIBIPP}/libippsn0.so.10.5 . && \
-    cp ${LIBIPP}/libippsl9.so.10.5 . && \
-    cp ${LIBIPP}/libippse9.so.10.5 . && \
-    cp ${LIBIPP}/libippsy8.so.10.5 . && \
-    cp ${LIBIPP}/libippsn8.so.10.5 . && \
-    cp ${LIBIPP}/libippsm7.so.10.5 . && \
-    cp ${LIBIPP}/libippik0.so.10.5 . && \
-    cp ${LIBIPP}/libippil9.so.10.5 . && \
-    mv ${PREFIX}/bin ${PREFIX}/usr/local/ && \
-    LD_LIBRARY_PATH=${PREFIX}/usr/local/lib ${PREFIX}/usr/local/bin/ffmpeg -buildconf && \
-    rm -rf ${PREFIX}/include/ ${PREFIX}/share/ ${PREFIX}/lib/
+RUN ldd "${PREFIX}/bin/ffmpeg" | cut -d ' ' -f 3 | xargs -i cp {} . && \
+    cp "${LIBIPP}/libippsk0.so.10.5" . && \
+    cp "${LIBIPP}/libippsn0.so.10.5" . && \
+    cp "${LIBIPP}/libippsl9.so.10.5" . && \
+    cp "${LIBIPP}/libippse9.so.10.5" . && \
+    cp "${LIBIPP}/libippsy8.so.10.5" . && \
+    cp "${LIBIPP}/libippsn8.so.10.5" . && \
+    cp "${LIBIPP}/libippsm7.so.10.5" . && \
+    cp "${LIBIPP}/libippik0.so.10.5" . && \
+    cp "${LIBIPP}/libippil9.so.10.5" . && \
+    mv "${PREFIX}/bin" "${PREFIX}/usr/local/" && \
+    LD_LIBRARY_PATH="${PREFIX}/usr/local/lib" "${PREFIX}/usr/local/bin/ffmpeg" -buildconf && \
+    rm -rf "${PREFIX:?}/include/" "${PREFIX:?}/share/" "${PREFIX:?}/lib/"
 
 ARG IMAGE_CACHE_REGISTRY
 FROM ${IMAGE_CACHE_REGISTRY}/library/ubuntu:18.04@sha256:152dc042452c496007f07ca9127571cb9c29697f42acbfad72324b2bb2e43c98 AS base

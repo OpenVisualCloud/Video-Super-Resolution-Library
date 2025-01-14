@@ -1,0 +1,204 @@
+name: template-docker-cached-build
+
+on:
+  workflow_call:
+    inputs:
+      build_type:
+        required: false
+        type: string
+        default: 'Release'
+      docker_registry:
+        required: false
+        type: string
+        default: 'ghcr.io'
+      docker_registry_prefix:
+        required: false
+        type: string
+        default: 'openvisualcloud/video-super-resolution-library'
+      docker_registry_login:
+        required: false
+        type: boolean
+        default: false
+      docker_registry_push:
+        required: false
+        type: boolean
+        default: false
+      docker_build_args:
+        required: false
+        type: string
+        default: ''
+      docker_build_platforms:
+        required: false
+        type: string
+        default: 'linux/amd64'
+      docker_image_tag:
+        required: false
+        type: string
+      docker_image_name:
+        required: true
+        type: string
+      docker_file_path:
+        required: false
+        type: string
+        default: './Dockerfile'
+    secrets:
+      git_docker_registry_login:
+        required: false
+      git_docker_registry_passkey:
+        required: false
+
+env:
+  BUILD_TYPE: "${{ inputs.build_type }}"
+  CONCURRENCY_GROUP: "${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
+  DOCKER_REGISTRY: "${{ inputs.docker_registry }}"
+  DOCKER_REGISTRY_LOGIN: "${{ github.repository == inputs.docker_registry_prefix && inputs.docker_registry_login }}"
+  DOCKER_BUILD_ARGS: "${{ inputs.docker_build_args }}"
+  DOCKER_PLATFORMS: "${{ inputs.docker_build_platforms }}"
+  DOCKER_IMAGE_PUSH: "${{ github.repository == inputs.docker_registry_prefix && inputs.docker_registry_push }}"
+  DOCKER_IMAGE_BASE: "${{ inputs.docker_registry }}/${{ inputs.docker_registry_prefix }}"
+  DOCKER_IMAGE_TAG: "${{ inputs.docker_image_tag || github.sha }}"
+  DOCKER_IMAGE_NAME: "${{ inputs.docker_image_name }}"
+  DOCKER_FILE_PATH: "${{ inputs.docker_file_path }}"
+  
+permissions:
+  contents: read
+
+jobs:
+  hadolint-scan-dockerfile:
+    name: "${{ inputs.docker_image_name }}: Perform Dockerfile scan."
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      security-events: write
+    timeout-minutes: 15
+    steps:
+      - name: "${{ inputs.docker_image_name }} scan: Harden Runner."
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit
+
+      - name: "${{ inputs.docker_image_name }} scan: Checkout repository"
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: "${{ inputs.docker_image_name }} scan: Scanner Hadolint Dockerfile scan sarif format."
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          dockerfile: "${{ env.DOCKER_FILE_PATH }}"
+          config: .github/configs/hadolint.yaml
+          format: sarif
+          output-file:  "hadolint-${{ env.CONCURRENCY_GROUP }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          no-fail: true
+          failure-threshold: info
+
+      - name: "${{ inputs.docker_image_name }} scan: Scanner Hadolint upload results to Security tab."
+        uses: github/codeql-action/upload-sarif@2e230e8fe0ad3a14a340ad0815ddb96d599d2aff # v3.25.8
+        with:
+          sarif_file: "hadolint-${{ env.CONCURRENCY_GROUP }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+
+      - name: "${{ inputs.docker_image_name }} scan: Scanner Hadolint upload results as an artifact."
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: "hadolint-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}"
+          path: "hadolint-${{ env.CONCURRENCY_GROUP }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+
+      - name: "${{ inputs.docker_image_name }}: Scanner Hadolint Dockerfile scan tty output"
+        if: always()
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          dockerfile: "${{ env.DOCKER_FILE_PATH }}"
+          config: .github/configs/hadolint.yaml
+          format: tty
+          failure-threshold: warning
+
+  build-docker-image:
+    needs: hadolint-scan-dockerfile
+    name: "${{ inputs.docker_image_name }}: Perform build of Dockerfile."
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      security-events: write
+      packages: write
+    timeout-minutes: 70
+    env:
+      BUILDKIT_STEP_LOG_MAX_SIZE: 50000000
+      BUILDKIT_STEP_LOG_MAX_SPEED: 10000000
+      DOCKER_TMPDIR: "/mnt/docker/docker-tmp"
+    steps:
+      - name: "${{ inputs.docker_image_name }}: Harden Runner"
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit
+
+      - name: "${{ inputs.docker_image_name }}: Disable OS SWAP, create mnt points, show settings."
+        shell: bash
+        run: |
+          SWAP_FILE="$(sudo swapon --show=NAME | tail -n 1)"
+          sudo swapoff "${SWAP_FILE}"
+          sudo rm "${SWAP_FILE}"
+          sudo mkdir -p "/mnt/docker/docker-d" "/mnt/docker/docker-tmp"
+
+      - name: "${{ inputs.docker_image_name }}: Add data-root and JSON dockerd config. Reload daemons."
+        shell: bash
+        run: |
+          sudo chmod 666 /etc/docker/daemon.json
+          echo "$(sudo jq '. += {"data-root":"/mnt/docker/docker-d","log-driver":"json-file","log-format":"text","log-level":"info","log-opts":{"cache-disabled":"false","cache-max-file":"5","cache-max-size":"20m","max-file":"5","max-size":"10m"}}' /etc/docker/daemon.json)" > /etc/docker/daemon.json
+          sudo chmod 644 /etc/docker/daemon.json
+          sudo systemctl daemon-reload
+          sudo systemctl restart docker
+
+      - name: "${{ inputs.docker_image_name }}: Show applied configuration."
+        shell: bash
+        run: |
+          sudo free -h
+          sudo lsblk
+          sudo df -h
+          sudo cat "/etc/docker/daemon.json"
+
+      - name: "${{ inputs.docker_image_name }}: Set up Docker Buildx and Toolkit"
+        uses: docker/setup-buildx-action@4fd812986e6c8c2a69e18311145f9371337f27d4 # v3.4.0
+        with:
+          buildkitd-flags: "--debug --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host"
+          platforms: "${{ env.DOCKER_PLATFORMS }}"
+          driver-opts: "memory=14Gib,memory-swap=25Gib,env.BUILDKIT_STEP_LOG_MAX_SIZE=${{ env.BUILDKIT_STEP_LOG_MAX_SIZE }},env.BUILDKIT_STEP_LOG_MAX_SPEED=${{ env.BUILDKIT_STEP_LOG_MAX_SPEED }}"
+
+      - name: "${{ inputs.docker_image_name }}: Checkout repository"
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: "${{ inputs.docker_image_name }}: Login to Docker Container Registry"
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        if: ${{ env.DOCKER_REGISTRY_LOGIN == 'true' }}
+        with:
+          registry: "${{ env.DOCKER_REGISTRY }}"
+          username: "${{ secrets.GIT_DOCKER_REGISTRY_LOGIN   || env.GITHUB_ACTOR }}"
+          password: "${{ secrets.GIT_DOCKER_REGISTRY_PASSKEY || secrets.GITHUB_TOKEN }}"
+
+      - name: "${{ inputs.docker_image_name }}: Build and push image"
+        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+        with:
+          load: true
+          push: "${{ env.DOCKER_IMAGE_PUSH }}"
+          outputs: type=docker
+          platforms: "${{ env.DOCKER_PLATFORMS }}"
+          file: "${{ env.DOCKER_FILE_PATH }}"
+          tags: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
+          cache-from: type=gha,scope=${{ env.DOCKER_IMAGE_NAME }}
+          cache-to: type=gha,mode=max,scope=${{ env.DOCKER_IMAGE_NAME }}
+          build-args: "${{ env.DOCKER_BUILD_ARGS }}"
+
+      - name: "${{ inputs.docker_image_name }}: Scanner Trivy run vulnerability scanner on image"
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+        with:
+          image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
+          format: "sarif"
+          output: "${{ env.CONCURRENCY_GROUP }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+
+      - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results to Security tab"
+        uses: github/codeql-action/upload-sarif@2e230e8fe0ad3a14a340ad0815ddb96d599d2aff # v3.25.8
+        with:
+          sarif_file: "${{ env.CONCURRENCY_GROUP }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+
+      - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results as an artifact."
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: "trivy-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}"
+          path: "${{ env.CONCURRENCY_GROUP }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
