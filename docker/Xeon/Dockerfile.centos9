@@ -43,15 +43,15 @@ RUN yum install -y \
 
 WORKDIR ${DL_PREFIX}/libx264
 RUN git clone https://github.com/mirror/x264 -b stable --depth 1 . && \
-    ./configure --prefix=${PREFIX} --libdir=${PREFIX}/lib --enable-shared && \
-    make -j $(nproc) && \
+    ./configure --prefix="${PREFIX}" --libdir="${PREFIX}/lib" --enable-shared && \
+    make -j"$(nproc)" && \
     make install
 
 WORKDIR ${DL_PREFIX}/libx265/build/linux
 RUN curl -Lf https://github.com/videolan/x265/archive/3.4.tar.gz | \
       tar -zx --strip-components=1 -C "${DL_PREFIX}/libx265/" && \
-    cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=${PREFIX} -DHIGH_BIT_DEPTH=ON ../../source && \
-    make -j$(nproc) && \
+    cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX="${PREFIX}" -DHIGH_BIT_DEPTH=ON ../../source && \
+    make -j"$(nproc)" && \
     make install
 
 ENV IPPROOT="/opt/intel/oneapi/ipp/latest"
@@ -83,16 +83,16 @@ RUN ./configure \
       --enable-cross-compile \
       --prefix="${PREFIX}"  && \
     make clean && \
-    make -j $(nproc) && \
+    make -j"$(nproc)" && \
     make install && \
-    rm -rf ${DL_PREFIX}/libx265 ${DL_PREFIX}/libx264
+    rm -rf "${DL_PREFIX}/libx265" "${DL_PREFIX}/libx264"
 
 ENV LIBIPP="/opt/intel/oneapi/ipp/latest/lib/intel64/"
 WORKDIR ${PREFIX}/usr/local/lib
-RUN ldd ${PREFIX}/bin/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} . && \
-    mv ${PREFIX}/bin ${PREFIX}/usr/local/ && \
-    rm -rf ${PREFIX}/share ${PREFIX}/include ${PREFIX}/lib && \
-    LD_LIBRARY_PATH="${PREFIX}/usr/local/lib:${LIBIPP}" ${PREFIX}/usr/local/bin/ffmpeg -buildconf
+RUN ldd "${PREFIX}/bin/ffmpeg" | cut -d ' ' -f 3 | xargs -i cp {} . && \
+    mv "${PREFIX}/bin" "${PREFIX}/usr/local/" && \
+    rm -rf "${PREFIX:?}/share" "${PREFIX:?}/include" "${PREFIX:?}/lib" && \
+    LD_LIBRARY_PATH="${PREFIX}/usr/local/lib:${LIBIPP}" "${PREFIX}/usr/local/bin/ffmpeg" -buildconf
 
 FROM quay.io/centos/centos:stream9 AS base
 

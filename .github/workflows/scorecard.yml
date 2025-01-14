@@ -17,57 +17,48 @@ on:
 # Declare default permissions as read only.
 permissions: read-all
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
+    if: ${{ github.repository == 'OpenVisualCloud/Video-Super-Resolution-Library' }}
     permissions:
-      # Needed to upload the results to code-scanning dashboard.
       security-events: write
-      # Needed to publish results and get a badge (see publish_results below).
       id-token: write
-      # Uncomment the permissions below if installing in a private repository.
-      # contents: read
-      # actions: read
-
+      contents: read
+      actions: read
     steps:
-      - name: "Checkout code"
+      - name: "scorecard: Harden Runner security"
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit
+
+      - name: "scorecard: Checkout code"
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           persist-credentials: false
 
-      - name: "Run analysis"
+      - name: "scorecard: Run analysis"
         uses: ossf/scorecard-action@0864cf19026789058feabb7e87baa5f140aac736 # v2.3.1
         with:
-          results_file: results.sarif
+          results_file: "scorecard-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
           results_format: sarif
-          # (Optional) "write" PAT token. Uncomment the `repo_token` line below if:
-          # - you want to enable the Branch-Protection check on a *public* repository, or
-          # - you are installing Scorecard on a *private* repository
-          # To create the PAT, follow the steps in https://github.com/ossf/scorecard-action?tab=readme-ov-file#authentication-with-fine-grained-pat-optional.
-          # repo_token: ${{ secrets.SCORECARD_TOKEN }}
-
-          # Public repositories:
-          #   - Publish results to OpenSSF REST API for easy access by consumers
-          #   - Allows the repository to include the Scorecard badge.
-          #   - See https://github.com/ossf/scorecard-action#publishing-results.
-          # For private repositories:
-          #   - `publish_results` will always be set to `false`, regardless
-          #     of the value entered here.
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
           publish_results: true
 
-      # Upload the results as artifacts (optional). Commenting out will disable uploads of run results in SARIF
-      # format to the repository Actions tab.
-      - name: "Upload artifact"
-        uses: actions/upload-artifact@97a0fba1372883ab732affbe8f94b823f91727db # v3.pre.node20
+      # Upload the results as artifacts (optional).
+      - name: "scorecard: Upload results artifact"
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
-          name: SARIF file
-          path: results.sarif
+          name: "scorecard-scan-results-${{ github.event.pull_request.number || github.sha }}"
+          path: "scorecard-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
           retention-days: 5
 
-      # Upload the results to GitHub's code scanning dashboard (optional).
-      # Commenting out will disable upload of results to your repo's Code Scanning dashboard
-      - name: "Upload to code-scanning"
-        uses: github/codeql-action/upload-sarif@v3
+      - name: "scorecard: Upload results to code-scanning"
+        uses: github/codeql-action/upload-sarif@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11
         with:
-          sarif_file: results.sarif
+          sarif_file: "scorecard-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"

@@ -1,15 +1,21 @@
-# Dependency Review Action
-#
 # Source repository: https://github.com/actions/dependency-review-action
-name: 'Dependency Review'
+
+name: 'scan-dependency-review'
 on: [pull_request]
 
 permissions:
   contents: read
+env:
+  LINTER_RULES_PATH: .github/configs/super-linter
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   dependency-review:
-    runs-on: ubuntu-latest
+    name: 'scan-dependency-review: Dependency review steps'
+    runs-on: 'ubuntu-22.04'
     steps:
       - name: 'Harden Runner'
         uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -21,3 +27,51 @@ jobs:
 
       - name: 'Dependency Review'
         uses: actions/dependency-review-action@72eb03d02c7872a771aacd928f3123ac62ad6d3a # v4.3.3
+
+  super-linter:
+    name: 'scan-dependency-review: Super-Linter'
+    runs-on: 'ubuntu-22.04'
+    permissions:
+      contents: read
+      packages: read
+      actions: read
+      security-events: write
+    timeout-minutes: 90
+    env:
+      SUPER_LINTER_OUTPUT_DIRECTORY_NAME: super-linter-output
+      SUPER_LINTER_SUMMARY_FILE_NAME: super-linter-summary.md
+      SAVE_SUPER_LINTER_SUMMARY: true
+      ENABLE_GITHUB_ACTIONS_STEP_SUMMARY : true
+    steps:
+    - name: 'super-linter: Harden Runner'
+      uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+      with:
+        egress-policy: audit
+
+    - name: 'super-linter: checkout repository [fetch-depth=0]'
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        fetch-depth: 0
+        ref: ${{ inputs.branch }}
+
+    - name: 'super-linter: perform super-linter scan workflow.'
+      uses: super-linter/super-linter/slim@e1cb86b6e8d119f789513668b4b30bf17fe1efe4 # v7.2.0 x-release-please-version
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DISABLE_ERRORS: true
+        VALIDATE_MARKDOWN: true
+        VALIDATE_MARKDOWN_PRETTIER: true
+        VALIDATE_JSONC: true
+        VALIDATE_GITHUB_ACTIONS: true
+        VALIDATE_CPP: true
+        VALIDATE_CLANG_FORMAT: true
+        VALIDATE_BASH: true
+        VALIDATE_BASH_EXEC: true
+
+    - name: 'super-linter: upload linter results as an artifact.'
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      if: env.SAVE_SUPER_LINTER_SUMMARY == 'true' || env.ENABLE_GITHUB_ACTIONS_STEP_SUMMARY == 'true'
+      with:
+        name: coverity-reports
+        path:
+          '${{ github.workspace }}/${{ env.SUPER_LINTER_OUTPUT_DIRECTORY_NAME }}/${{ env.SUPER_LINTER_SUMMARY_FILE_NAME }}'

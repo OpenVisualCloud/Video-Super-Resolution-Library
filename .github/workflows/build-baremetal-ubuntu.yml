@@ -1,0 +1,104 @@
+name: build-baremetal-ubuntu
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  TZ: "Europe/Warsaw"
+  BUILD_TYPE: "Release"
+  DEBIAN_FRONTEND: "noninteractive"
+  FFMPEG_COMMIT_ID: "n6.1.1"
+  BUILD_DIR: "${{ github.workspace }}/build"
+  PREFIX: "${{ github.workspace }}/_install"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build-baremetal-ubuntu:
+    runs-on: 'ubuntu-22.04'
+    timeout-minutes: 70
+    env:
+      LD_LIBRARY_PATH: "/opt/intel/oneapi/ipp/latest/lib:${PREFIX}/lib:${PREFIX}/lib64:${LD_LIBRARY_PATH}"
+    steps:
+    - name: 'Harden Runner'
+      uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+      with:
+        egress-policy: audit
+
+    - name: 'Checkout repository'
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: 'Install OS level dependencies'
+      run: |
+        set -exo pipefail && \
+        mkdir -p "${PREFIX}" "${BUILD_DIR}/ffmpeg" && \
+        sudo apt-get update --fix-missing && \
+        sudo apt-get full-upgrade -y && \
+        sudo apt-get install --no-install-recommends -y \
+          git \
+          curl \
+          wget \
+          unzip \
+          tar \
+          ca-certificates \
+          libx265-dev \
+          libx264-dev \
+          zlib1g-dev \
+          build-essential \
+          nasm \
+          cmake \
+          diffutils
+
+    - name: 'Install Intel OneAPI APT repository'
+      run: |
+        set -exo pipefail && \
+        curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg && \
+        echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/intel-oneAPI.list && \
+        sudo apt-get update --fix-missing && \
+        sudo apt-get install --no-install-recommends -y intel-oneapi-ipp-devel-2022.0
+
+    - name: 'Download and patch ffmpeg repository'
+      run: |
+        set -eo pipefail && \
+        curl -Lf https://github.com/ffmpeg/ffmpeg/archive/${FFMPEG_COMMIT_ID}.tar.gz | tar -zx --strip-components=1 -C "${BUILD_DIR}/ffmpeg"
+        patch -d "${BUILD_DIR}/ffmpeg" -p1 -i <(cat "${{ github.workspace }}/ffmpeg/"*.patch)
+        cp "${{ github.workspace }}/ffmpeg/vf_raisr"*.c "${BUILD_DIR}/ffmpeg/libavfilter"
+
+    - name: 'Build RAISR from source code'
+      run: './build.sh -DENABLE_RAISR_OPENCL=ON'
+
+    - name: 'Configure, build and install ffmpeg repository'
+      working-directory: "${BUILD_DIR}/ffmpeg"
+      run: |
+        ./configure \
+          --enable-libipp \
+          --extra-cflags=-fopenmp \
+          --extra-ldflags=-fopenmp \
+          --enable-gpl \
+          --enable-libx264 \
+          --enable-libx265 \
+          --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm -lintlc -lsvml' \
+          --enable-cross-compile \
+          --prefix="${PREFIX}"  && \
+        make clean && \
+        make -j"$(nproc)" && \
+        sudo -E make install
+
+    - name: 'Libraries path cleanup and ffmpeg check'
+      working-directory: "${BUILD_DIR}/ffmpeg"
+      run: |
+        sudo -E ldconfig
+        ffmpeg -buildconf
