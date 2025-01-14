@@ -48,12 +48,13 @@ jobs:
       run: |
         sudo apt update -y
         sudo apt install -y sudo git wget curl pkg-config bash tar zip unzip make
+        mkdir -p "${{ github.workspace }}/build"
         git config --global user.email "you@example.com"
         git config --global user.name "Your Name"
 
     - name: 'Build RAISR prerequisites and install'
+      working-directory: "${{ github.workspace }}/build"
       run: |
-        mkdir -p "${{ github.workspace }}/build"
         "${{ github.workspace }}/scripts/01_pull_resources.sh"
         "${{ github.workspace }}/scripts/02_install_prerequisites.sh" "${{ github.workspace }}/build/raisr.tar.gz"
 
@@ -64,6 +65,7 @@ jobs:
         config-file: "${{ github.workspace }}/.github/codeql/codeql-config.yml"
 
     - name: 'Build RAISR source library'
+      working-directory: "${{ github.workspace }}/build"
       run: |
         "${{ github.workspace }}/scripts/03_build_raisr_ffmpeg.sh" "${{ github.workspace }}/build/raisr/Video-Super-Resolution-Library"
         "${{ github.workspace }}/build.sh"
