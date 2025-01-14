@@ -1,9 +1,19 @@
 #!/bin/bash
 
-# This scrpit is used to build raisr and ffmpeg
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright 2024-2025 Intel Corporation
+
+# This script is used to build raisr and ffmpeg
 
 # Usage: 03_build_raisr_ffmpeg.sh /xxx/raisr/Video-Super-Resolution-Library
 
+set -eo pipefail
+
+SCRIPT_DIR="$(readlink -f "$(dirname -- "${BASH_SOURCE[0]}")")"
+REPOSITORY_DIR="$(readlink -f "${SCRIPT_DIR}/../")"
+. "${SCRIPT_DIR}/common.sh"
+
+log_info Starting script execution "${BASH_SOURCE[0]}"
 raisr_path=$1
 
 if [ -z "$raisr_path" ];then
@@ -12,33 +22,42 @@ if [ -z "$raisr_path" ];then
 fi
 
 # set IPP, x264 and x265 env
+. /opt/intel/oneapi/ipp/latest/env/vars.sh
 export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-source /opt/intel/oneapi/ipp/latest/env/vars.sh
+export C_INCLUDE_PATH="/opt/intel/oneapi/ipp/latest/include/ipp"
 
 # build raisr
-cd $raisr_path
-sudo -E ./build.sh
+pushd "$raisr_path"
 
+sudo -E ./build.sh
+popd
 # build ffmpeg
-cd ../ffmpeg
-cp ../Video-Super-Resolution-Library/ffmpeg/vf_raisr.c libavfilter/
+pushd "${raisr_path}/../ffmpeg"
+cp "${raisr_path}/ffmpeg/vf_raisr.c" libavfilter/
 
 ./configure \
- --enable-libipp \
- --extra-cflags="-fopenmp" \
- --extra-ldflags=-fopenmp \
- --enable-gpl \
- --enable-libx264 \
- --enable-libx265 \
- --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' \
- --enable-cross-compile
+    --enable-libipp \
+    --extra-cflags="-fopenmp -I/opt/intel/oneapi/ipp/latest/include/ipp" \
+    --extra-ldflags=-fopenmp \
+    --enable-gpl \
+    --enable-libx264 \
+    --enable-libx265 \
+    --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' \
+    --enable-cross-compile
 make clean
-make -j $(nproc)
+make -j "$(nproc)"
+make install
+popd
 
-cp -r ../Video-Super-Resolution-Library/filters* .
+cp -r "${raisr_path}/filters"* .
 
-echo -e "To run the library you can do the following: \n
-      cd raisr/ffmpeg \n
-      ./ffmpeg -y -i /input_files/input.mp4 -vf raisr=threadcount=20 -pix_fmt yuv420p /output_files/out.yuv \n
-And you can see more use cases in README file of Video-Super-Resolution-Library."
+log_info "\tTo run the library you can do the following:"
+log_info
+log_info "\t\tcd raisr/ffmpeg"
+log_info "\t\t./ffmpeg -y -i /input_files/input.mp4 -vf raisr=threadcount=20 -pix_fmt yuv420p /output_files/out.yuv"
+log_info
+log_info And you can see more use cases in README file of Video-Super-Resolution-Library.
+log_info "\tNotice: If you get \"ffmpeg: error while loading shared libraries\", try first doing:"
+log_info "\t\texport LD_LIBRARY_PATH=\"/opt/intel/oneapi/ipp/latest/lib/intel64:/usr/local/lib:${LD_LIBRARY_PATH}\""
 
+log_info "Finished script execution \"${BASH_SOURCE[0]}\""

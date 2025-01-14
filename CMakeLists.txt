@@ -45,8 +45,8 @@ SET(CMAKE_REQUIRED_FLAGS "-march=native")
 check_cxx_source_runs("
     #include <immintrin.h>
     int main(int argc, char** argv) {
-        _Float16 data[16] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
-        _Float16 output[16];
+        _Float16 data[32] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31};
+        _Float16 output[32];
         __m512h a = _mm512_loadu_ph(data); // avx512fp16
         __m512h b = _mm512_loadu_ph(data);
         __mmask32 mask = _mm512_cmp_ph_mask(a, b, _CMP_EQ_OQ); // avx512fp16

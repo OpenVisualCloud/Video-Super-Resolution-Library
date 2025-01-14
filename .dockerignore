@@ -1,0 +1,5 @@
+*.md
+./Jenkinsfile*
+./license*
+./test*
+*Dockerfile*

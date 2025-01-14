@@ -73,7 +73,7 @@ static bool machine_supports_feature(MachineVendorType vendor, ASMType type)
     bool ret = false;
     unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
 
-    if (vendor == INTEL ) {
+    if (vendor == INTEL || vendor == AMD ) {
         __get_cpuid_count(0x7, 0x0, &eax, &ebx, &ecx, &edx);
 
         if (type == AVX512_FP16) {
@@ -92,20 +92,6 @@ static bool machine_supports_feature(MachineVendorType vendor, ASMType type)
             }
         } else if (type == AVX2) {
             // check for avx2 flag
-            if ( (ebx >> 5) & 0x1)
-            {
-                ret = true;
-            }
-        }
-    }
-    else if (vendor == AMD)
-    {
-        __get_cpuid_count(0x7, 0x0, &eax, &ebx, &ecx, &edx);
-        if (type == AVX512_FP16) {
-            ret = false;
-        } else if (type == AVX512) {
-            ret = false;
-        } else if (type == AVX2) {
             if ( (ebx >> 5) & 0x1)
             {
                 ret = true;
@@ -898,7 +884,7 @@ __m256i inline modulo_imm( __m256i a, int b) {
 void inline write_pixeltype(int c, __m256i gPatchMargin_epi32, __m256i partone, int* out) {
                         __m256i b = _mm256_sub_epi32( _mm256_add_epi32(_mm256_set1_epi32(c), _mm256_setr_epi32(0,1,2,3,4,5,6,7)), gPatchMargin_epi32);
                         __m256i pixelType_epi32 = _mm256_add_epi32( partone, modulo_imm(b, gRatio) );
-                        _mm256_storeu_epi32(out, pixelType_epi32);
+                        _mm256_storeu_si256((__m256i *)(out), pixelType_epi32);
 }
 
 RNLERRORTYPE processSegment(VideoDataType *srcY, VideoDataType *final_outY, BlendingMode blendingMode, int threadIdx)

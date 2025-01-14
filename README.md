@@ -14,6 +14,7 @@ Enhanced RAISR is provided as an FFmpeg plugin inside of a Docker container(Dock
 
 - Feb 2024 : AWS and Intel announced collaboration to release Intel Library for VSR on AWS Cloud at the Mile High Video 2024 conference, technical details available at  https://dl.acm.org/doi/10.1145/3638036.3640290  
 
+We have enhanced the public RAISR algorithm to achieve better visual quality and beyond real-time performance for 2x and 1.5x upscaling on Intel® Xeon® platforms and Intel® GPUs. The Intel Library for VSR is provided as an FFmpeg plugin inside of a Docker container to help ease testing and deployment burdens. This project is developed using C++ and takes advantage of Intel® Advanced Vector Extension 512 (Intel® AVX-512) where available and newly added Intel® AVX-512FP16 support on Intel® Xeon® 4th Generation (Sapphire Rapids) and added OpenCL support on Intel® GPUs.
 
 ## How to build
 Please see "How to build.md" to build via scripts or manually.

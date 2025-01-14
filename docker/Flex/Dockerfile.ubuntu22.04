@@ -1,0 +1,217 @@
+# syntax=docker/dockerfile:1
+
+# Copyright (c) 2020-2021 Intel Corporation.
+# SPDX-License-Identifier: BSD-3-Clause
+
+# use Ubuntu 22.04 with Intel IPP
+FROM intel/oneapi-basekit:2023.2-devel-ubuntu22.04 AS build
+
+ARG SVT_AV1_VER=v2.1.2
+ARG SVT_VP9_VER=v0.3.0
+ARG LIBVPX_VER=03265cd42b3783532de72f2ded5436652e6f5ce3
+ARG GMMLIB_VER=22.4.1
+ARG LIBVA2_VER=2.22.0
+ARG LIBVA_UTILS_VER=2.22.0
+ARG MEDIA_DRIVER_VER=24.2.5
+ARG FFMPEG_VER="n6.1.1"
+
+ARG SVT_AV1_REPO=https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/${SVT_AV1_VER}/SVT-AV1-${SVT_AV1_VER}.tar.gz
+ARG SVT_VP9_REPO=https://github.com/OpenVisualCloud/SVT-VP9/archive/refs/tags/${SVT_VP9_VER}.tar.gz
+ARG LIBVPX_REPO=https://chromium.googlesource.com/webm/libvpx.git/+archive/${LIBVPX_VER}.tar.gz
+ARG GMMLIB_REPO=https://github.com/intel/gmmlib/archive/refs/tags/intel-gmmlib-${GMMLIB_VER}.tar.gz
+ARG LIBVA2_REPO=https://github.com/intel/libva/archive/${LIBVA2_VER}.tar.gz
+ARG LIBVA_UTILS_REPO=https://github.com/intel/libva-utils/archive/${LIBVA_UTILS_VER}.tar.gz
+ARG MEDIA_DRIVER_REPO=https://github.com/intel/media-driver/archive/intel-media-${MEDIA_DRIVER_VER}.tar.gz
+ARG FFMPEG_REPO=https://github.com/ffmpeg/ffmpeg/archive/${FFMPEG_VER}.tar.gz
+
+ARG PREFIX=/opt/build
+ARG DL_PREFIX=/opt
+
+ENV LD_LIBRARY_PATH="/opt/build/lib:/opt/build/lib64:$LD_LIBRARY_PATH"
+ENV PKG_CONFIG_PATH="/opt/build/lib/pkgconfig:$PKG_CONFIG_PATH"
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV TZ="Europe/Warsaw"
+
+# Update apt and install dependances
+SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
+WORKDIR ${PREFIX}
+RUN rm /etc/apt/sources.list.d/oneAPI.list && \
+    apt-get update --fix-missing && \
+    apt-get full-upgrade -y && \
+    apt-get install --no-install-recommends -y \
+      ca-certificates \
+      automake libdrm-dev libtool libx11-dev libxext-dev libxfixes-dev libwayland-dev \
+      cmake \
+      curl \
+      libx265-dev \
+      libx264-dev \
+      zlib1g-dev \
+      nasm \
+      opencl-headers \
+      ocl-icd-opencl-dev \
+      libpciaccess-dev \
+      yasm && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# build svt av1
+WORKDIR ${DL_PREFIX}/SVT-AV1/Build/linux
+RUN curl -Lf ${SVT_AV1_REPO} | tar zx --strip-components=1 -C "${DL_PREFIX}/SVT-AV1" && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} -DCMAKE_INSTALL_LIBDIR=${PREFIX}/lib -DCMAKE_ASM_NASM_COMPILER=yasm ../.. && \
+    make -j "$(nproc)" && \
+    make install
+
+# build svt vp9
+WORKDIR ${DL_PREFIX}/SVT-VP9/Build/linux
+RUN curl -Lf ${SVT_VP9_REPO} | tar zx --strip-components=1 -C "${DL_PREFIX}/SVT-VP9" && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} -DCMAKE_INSTALL_LIBDIR=${PREFIX}/lib -DCMAKE_ASM_NASM_COMPILER=yasm ../.. && \
+    make -j "$(nproc)" && \
+    make install
+
+# build libvpx
+WORKDIR ${DL_PREFIX}/libvpx
+RUN curl -Lf ${LIBVPX_REPO} | tar zx --strip-components=0 -C "${DL_PREFIX}/libvpx" && \
+    ./configure --prefix=${PREFIX} --libdir=${PREFIX}/lib --enable-shared --disable-examples --disable-unit-tests --enable-vp9-highbitdepth --as=nasm && \
+    make -j"$(nproc)" && \
+    make install
+
+# build gmmlib
+WORKDIR ${DL_PREFIX}/gmmlib/build
+RUN curl -Lf ${GMMLIB_REPO} | tar xz --strip-components=1 -C "${DL_PREFIX}/gmmlib" && \
+    cmake -DCMAKE_INSTALL_PREFIX=${PREFIX} -DCMAKE_INSTALL_LIBDIR=${PREFIX}/lib .. && \
+    make -j"$(nproc)" && \
+    make install
+
+# build libva2
+WORKDIR ${DL_PREFIX}/libva
+RUN curl -Lf ${LIBVA2_REPO} | tar xz --strip-components=1 -C "${DL_PREFIX}/libva" && \
+    ./autogen.sh --prefix=${PREFIX} --libdir=${PREFIX}/lib && \
+    make -j"$(nproc)" && \
+    make install
+
+# build libva-utils
+WORKDIR ${DL_PREFIX}/libva-utils
+RUN curl -Lf ${LIBVA_UTILS_REPO} | tar xz --strip-components=1 -C "${DL_PREFIX}/libva-utils" && \
+  ./autogen.sh --prefix=${PREFIX} --libdir=${PREFIX}/lib && \
+  make -j"$(nproc)" && \
+  make install
+
+# build media driver
+WORKDIR ${DL_PREFIX}/media-driver-intel-media/build
+RUN curl -Lf ${MEDIA_DRIVER_REPO} | tar xz --strip-components=1 -C "${DL_PREFIX}/media-driver-intel-media" && \
+    cmake -DCMAKE_INSTALL_PREFIX=${PREFIX} -DCMAKE_INSTALL_LIBDIR=${PREFIX}/lib -DENABLE_PRODUCTION_KMD=ON .. && \
+    make -j"$(nproc)" && \
+    make install
+
+WORKDIR ${DL_PREFIX}/Video-Super-Resolution-Library
+COPY . ${DL_PREFIX}/Video-Super-Resolution-Library
+RUN ./build.sh -DENABLE_RAISR_OPENCL=ON
+
+WORKDIR ${DL_PREFIX}/ffmpeg
+RUN curl -Lf "${FFMPEG_REPO}" | \
+      tar -zx --strip-components=1 -C ${DL_PREFIX}/ffmpeg && \
+    git -C "${DL_PREFIX}/ffmpeg" apply --whitespace=fix ${DL_PREFIX}/Video-Super-Resolution-Library/ffmpeg/*.patch && \
+	  cp ${DL_PREFIX}/Video-Super-Resolution-Library/ffmpeg/vf_raisr*.c ${DL_PREFIX}/ffmpeg/libavfilter
+
+# Configure and build ffmpeg
+WORKDIR ${DL_PREFIX}/ffmpeg
+RUN ./configure \
+      --enable-libipp \
+      --extra-cflags=-fopenmp \
+      --extra-ldflags=-fopenmp \
+      --enable-gpl \
+      --enable-libx264 \
+      --enable-libx265 \
+      --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm -lintlc -lsvml' \
+      --enable-cross-compile  \
+      --enable-opencl \
+      --enable-vaapi \
+      --enable-libsvtav1 \
+      --enable-libvpx \
+      --prefix="${PREFIX}"  && \
+    make clean && \
+    make -j $(nproc) && \
+    make install
+
+# cleanup
+WORKDIR ${PREFIX}
+RUN mkdir -p ${PREFIX}/usr/lib && \
+    ldd ${PREFIX}/bin/ffmpeg | cut -d ' ' -f 3 | xargs -i cp {} ${PREFIX}/usr/lib/ && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippik0.so.10.8 ${PREFIX}/usr/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsk0.so.10.8 ${PREFIX}/usr/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsn0.so.10.8 ${PREFIX}/usr/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsl9.so.10.8 ${PREFIX}/usr/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippse9.so.10.8 ${PREFIX}/usr/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsy8.so.10.8 ${PREFIX}/usr/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsn8.so.10.8 ${PREFIX}/usr/lib && \
+        cp /opt/intel/oneapi/ipp/latest/lib/intel64/libippsm7.so.10.8 ${PREFIX}/usr/lib && \
+        LD_LIBRARY_PATH=${PREFIX}/usr/lib:/usr/local/lib64 /opt/build/bin/ffmpeg -buildconf && \
+        mv ${PREFIX}/bin ${PREFIX}/usr/bin && \
+        mv ${PREFIX}/lib ${PREFIX}/usr/local/
+
+FROM ubuntu:22.04 AS base
+
+LABEL org.opencontainers.image.authors="milosz.linkiewicz@intel.com,xiaoxia.liang@intel.com"
+LABEL org.opencontainers.image.url="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library"
+LABEL org.opencontainers.image.title="Intel® Library with OpenCL for Video Super Resolution"
+LABEL org.opencontainers.image.description="Intel® Library with OpenCL for Video Super Resolution. RAISR (Rapid and Accurate Image Super Resolution) algorithm implementation by Intel® Corporation, as FFmpeg plugin. Ubuntu 22.04 Docker image."
+LABEL org.opencontainers.image.documentation="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/main/README.md"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.vendor="Intel® Corporation"
+LABEL org.opencontainers.image.licenses="BSD 3-Clause License"
+
+ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
+ENV LIBVA_DRIVERS_PATH=/usr/local/lib/dri
+
+SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
+
+WORKDIR /opt/raisrfolder
+COPY --from=build /opt/build /
+COPY ./filters_1.5x/ /opt/raisrfolder/filters_1.5x/
+COPY ./filters_2x/ /opt/raisrfolder/filters_2x/
+
+RUN apt-get update --fix-missing && \
+    apt-get full-upgrade -y && \
+    apt-get install --no-install-recommends -y \
+      sudo \
+      curl \
+      ca-certificates \
+      gpg \
+      libx264-1* \
+      libx265-1* \
+      unzip \
+      libpcre3 \
+      libpcre3-dev \
+      libssl-dev \
+      gcc \
+      zlib1g-dev \
+      make && \
+    curl -fsSL https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor | tee /usr/share/keyrings/intel-graphics-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/intel-graphics-archive-keyring.gpg arch=amd64] https://repositories.intel.com/graphics/ubuntu jammy flex" > /etc/apt/sources.list.d/intel-graphics.list && \
+    apt-get update --fix-missing && \
+    apt-get install --no-install-recommends -y \
+      intel-opencl-icd \
+      intel-level-zero-gpu && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    ln -s /usr/bin/ffmpeg /opt/raisrfolder/ffmpeg && \
+    mkdir -p /opt/nginx /opt/nginx-rtmp-module && \
+    curl -Lf https://github.com/arut/nginx-rtmp-module/archive/refs/heads/master.tar.gz | tar xz --strip-components=1 -C "/opt/nginx-rtmp-module" && \
+    curl -Lf http://nginx.org/download/nginx-1.24.0.tar.gz | tar xz --strip-components=1 -C "/opt/nginx"
+
+# Run ffmpeg and verify that the raisr filter is supported
+RUN ffmpeg -h filter=raisr
+
+# install ngnix
+WORKDIR /opt/nginx
+RUN ./configure --with-http_ssl_module --add-module=../nginx-rtmp-module && \
+	  make -j $(nproc) && \
+    make install && \
+    rm -rf nginx-rtmp-module nginx
+
+# copy nignx.conf file
+COPY docker/Flex/nginx.conf /usr/local/nginx/conf/
+WORKDIR /opt/raisrfolder
+SHELL ["/bin/bash", "-c"]
+CMD ["-h", "filter=raisr"]
+ENTRYPOINT [ "/opt/raisrfolder/ffmpeg" ]

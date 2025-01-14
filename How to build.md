@@ -3,24 +3,24 @@ To build this project you will need:
 - Linux based OS
     - For CPU tested and validated on Ubuntu 18.04 LTS, Ubuntu 22.04 and CentOS 7.9
     - For GPU tested and validated on Intel® Data Center GPU Flex 170 with Ubuntu 22.04 LTS(5.15 LTS kernel)
-- [Docker](https://www.docker.com/) 
+- [Docker](https://www.docker.com/)
 - Intel Xeon hardware which supports Intel AVX512 (Skylake generation or later)
 - Compiler (clang++, g++, icc), and enabling AVX512-FP16 on Sapphire Rapiads needs:
     - clang++ version 14.0.0 or later
     - g++ version 12.1.0 with binutils 2.38 or later
     - icc version 2021.2 or later
-- Cmake version 3.14 or later 
+- Cmake version 3.14 or later
 - Intel® Integrated Performance Primitives (Intel® IPP) (Stand-Alone Version is the minimum requirement)
 - zlib1g-dev, pkg-config (The pkg-config is used to find x264.pc/x265.pc in specific pkgconfig path.)
 
 We provide 3 ways to build the Intel VSR with FFmpeg environment:
-- build docker images with dockerfiles(only for CPU).
-- build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/master/scripts)(only for CPU).
+- build docker images with dockerfiles(both CPU and GPU).
+- build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/main/scripts)(only for CPU).
 - build manually(both CPU and GPU).
 
 # Build Docker Images.
 
-We provide 3 Dockerfile for Intel Xeon platforms: Ubuntu18.04, Ubuntu22.04 and CentOS7.9. You can refer to below steps to build docker images.
+We provide 3 Dockerfile for Intel Xeon platforms: Ubuntu18.04, Ubuntu22.04 and CentOS7.9, and 1 Dockerfile with Ubuntu22.04 for Intel Flex GPU. You can refer to below steps to build docker images.
 ## Setup docker proxy as follows if you are behind a firewall:
 ```
 sudo mkdir -p /etc/systemd/system/docker.service.d
@@ -32,23 +32,25 @@ sudo systemctl restart docker
 ## build docker image via docker_build.sh
 The usage of the script is as follows
 ```
-./docker_build.sh <OS> <OS_VERSION>
+./docker_build.sh <PLATFORM> <OS> <OS_VERSION>
 
-./docker_build.sh ubuntu 22.04 #for building Ubuntu22.04
-./docker_build.sh ubuntu 18.04 #for building Ubuntu18.04
-./docker_build.sh centos 7.9 #for building CentOS7.9
+./docker_build.sh xeon ubuntu 22.04 #for building Xeon platform with Ubuntu22.04
+./docker_build.sh xeon ubuntu 18.04 #for building Xeon platform with Ubuntu18.04
+./docker_build.sh xeon centos 7.9 #for building Xeon platform with CentOS7.9
+./docker_build.sh flex ubuntu 22.04 #for building Flex platform with Ubuntu22.04
 ```
-If the image is built successfully, you can find a docker image named `raisr:ubuntu22.04` or `raisr:ubuntu18.04` or `raisr:centos7.9` with command `docker images`
+If the image is built successfully, you can find a docker image named `raisr-xeon:ubuntu22.04` or `raisr-xeon:ubuntu18.04` or `raisr-xeon:centos7.9` or `raisr-flex:ubuntu22.04` with command `docker images`
+Please note it needs to add `--privileged  --device /dev/dri` option to access GPU hardware in docker container during run raisr-flex docker container.
 
-# Build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/master/scripts)
+# Build via [scripts](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/main/scripts)
 If the user would prefer not to use Docker, you can follow the steps below to setup enviroment: \
     `cd Video-Super-Resolution-Library/scripts` \
     `./01_pull_resources.sh` \
     `./02_install_prerequisites.sh /xxx/raisr.tar.gz` \
     `./03_build_raisr_ffmpeg.sh /xxx/raisr/Video-Super-Resolution-Library`
-- [01_pull_resources.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/master/scripts/01_pull_resources.sh): Download the resources used for build Intel Library for VSR and FFmpeg(cmake 3.14, nasm, x264, x265, ipp, Intel Library for VSR and FFmpeg) and package these resource to      raisr.tar.gz.
-- [02_install_prerequisites.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/master/scripts/02_install_prerequisites.sh): Extract the tarball raisr.tar.gz of resources and build and install the libraries required by building Intel Library for VSR and FFmpeg.
-- [03_build_raisr_ffmpeg.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/master/scripts/03_build_raisr_ffmpeg.sh): Build Intel Library for VSR and FFmpeg.
+- [01_pull_resources.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/main/scripts/01_pull_resources.sh): Download the resources used for build Intel Library for VSR and FFmpeg(cmake 3.14, nasm, x264, x265, ipp, Intel Library for VSR and FFmpeg) and package these resource to      raisr.tar.gz.
+- [02_install_prerequisites.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/main/scripts/02_install_prerequisites.sh): Extract the tarball raisr.tar.gz of resources and build and install the libraries required by building Intel Library for VSR and FFmpeg.
+- [03_build_raisr_ffmpeg.sh](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/blob/main/scripts/03_build_raisr_ffmpeg.sh): Build Intel Library for VSR and FFmpeg.
 
 # Build manually following the steps below
 ## Install Intel IPP
@@ -66,7 +68,7 @@ The x264/x265 libraries can be installed via apt on Ubuntu OS or built and insta
 
 ### Build and install x264/x265 from source code(Option-2)
 
-#### Build and install x264 
+#### Build and install x264
 
 `git clone https://github.com/mirror/x264 -b stable --depth 1` \
 `cd x264` \
