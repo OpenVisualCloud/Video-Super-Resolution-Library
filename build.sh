@@ -4,20 +4,28 @@
 # Copyright 2024-2025 Intel Corporation
 
 # Fails the script if any of the commands error (Other than if and some others)
-set -ex -o pipefail
+set -e -o pipefail
 
 SCRIPT_DIR="$(readlink -f "$(dirname -- "${BASH_SOURCE[0]}")")"
+REPOSITORY_DIR="$(readlink -f "${SCRIPT_DIR}")"
+
 . "${SCRIPT_DIR}/scripts/common.sh"
 nproc="${nproc:-$(nproc)}"
+
+# Env variable BUILD_TYPE can be one off: RelWithDebInfo, Release, Debug
+BUILD_TYPE="${BUILD_TYPE:-Release}"
+
+CMAKE_C_FLAGS=" -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp ${CMAKE_C_FLAGS}"
+CMAKE_CXX_FLAGS=" -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp ${CMAKE_CXX_FLAGS}"
+CMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;${CMAKE_LIBRARY_PATH}"
+LDFLAGS="${LDFLAGS} -L/opt/intel/oneapi/ipp/latest/lib -L${PREFIX}/lib "
 
 # Helpful when copying and pasting functions and debuging.
 if printf '%s' "$0" | grep -q '\.sh'; then
     IN_SCRIPT=true
 fi
 
-
-
-cd_safe() {
+function cd_safe() {
     if (cd "$1"); then
         cd "$1"
     else
@@ -28,60 +36,68 @@ cd_safe() {
 }
 
 # Usage: build [test]
-build() (
-    build_type=Release
-    log_info "Create folder: build, build type: $build_type"
-    mkdir -p build > /dev/null 2>&1
-    cd_safe build
+function build()
+(
+    log_info "Create folder: build, build type: ${BUILD_TYPE}"
 
-    for file in *; do
-        rm -rf "$file"
-    done
+    if [[ -d "${REPOSITORY_DIR:?}/build" ]]; then
+      rm -rf "${REPOSITORY_DIR:?}/build/"*
+    fi
 
-    cmake .. -DCMAKE_BUILD_TYPE="$build_type" $CMAKE_EXTRA_FLAGS "$@"
+    mkdir -p "${REPOSITORY_DIR}/build" > /dev/null 2>&1
+
+    cmake -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" "${CMAKE_EXTRA_FLAGS}" -B "${REPOSITORY_DIR}/build" -S "${REPOSITORY_DIR}" "$@"
     #cmake .. -DCMAKE_BUILD_TYPE="RelWithDebInfo" $CMAKE_EXTRA_FLAGS "$@"
 
-    if [ -f Makefile ]; then
-        make -j "${nproc}"
-        make install -j "${nproc}"
+    if [ -f "${REPOSITORY_DIR}/build/Makefile" ]; then
+      make -j"${nproc}" -C "${REPOSITORY_DIR}/build"
+      as_root make install -j"${nproc}" -C "${REPOSITORY_DIR}/build"
     fi
-
-    cd ..
 )
 
+function check_executable()
+{
+    print_exec=(printf '\0')
+    if [[ "$#" -ge "2" ]]; then
+      if [[ "${1}" == "-p" ]]; then
+        print_exec=(printf '%s\n')
+      fi
+      shift
+    fi
 
-check_executable() (
-    print_exec=false
-    while true; do
-        case "$1" in
-        -p) print_exec=true && shift ;;
-        *) break ;;
-        esac
-    done
-    [ -n "$1" ] && command_to_check="$1" || return 1
-    shift
-    if [ -e "$command_to_check" ]; then
-        $print_exec && printf '%s\n' "$command_to_check"
+    if [[ "$#" -ge "1" ]]; then
+      command_to_check="${1}" && shift
+    else
+      log_error "Wrong number of parameters passed to check_executable()."
+      return 1
+    fi
+
+    if [ -e "${command_to_check}" ]; then
+      "${print_exec[@]}" "${command_to_check}"
+      return 0
+    fi
+
+    for pt in "$@" $(echo "${PATH}" | tr ':' ' '); do
+      if [ -e "${pt}/${command_to_check}" ]; then
+        "${print_exec[@]}" "${pt}/${command_to_check}"
         return 0
-    fi
-    for d in "$@" $(printf '%s ' "$PATH" | tr ':' ' '); do
-        if [ -e "$d/$command_to_check" ]; then
-            $print_exec && printf '%s\n' "$d/$command_to_check"
-            return 0
-        fi
+      fi
     done
+
     return 127
-)
+}
+
 if check_executable icpx; then
     CXX=$(check_executable -p icpx)
-elif check_executable clang++; then
-    CXX=$(check_executable -p clang++)
 elif check_executable g++; then
     CXX=$(check_executable -p g++)
+elif check_executable clang++; then
+    CXX=$(check_executable -p clang++)
 else
-    die "No suitable cpp compiler found in path" \
-        "Please either install one or set it via cxx=*"
+    log_error "No suitable cpp compiler found in path."
+    log_error "Please either install one or set it via cxx=*"
+    die "[Exiting due to error.]"
 fi
-export CXX
 
+export CXX
 build "$@"

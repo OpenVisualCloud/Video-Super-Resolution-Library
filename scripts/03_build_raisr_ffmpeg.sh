@@ -27,26 +27,28 @@ export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
 export C_INCLUDE_PATH="/opt/intel/oneapi/ipp/latest/include/ipp"
 
 # build raisr
-pushd "$raisr_path"
-
+pushd "${raisr_path}"
 sudo -E ./build.sh
 popd
+
 # build ffmpeg
 pushd "${raisr_path}/../ffmpeg"
 cp "${raisr_path}/ffmpeg/vf_raisr.c" libavfilter/
 
 ./configure \
+    --disable-debug \
+    --disable-doc \
     --enable-libipp \
-    --extra-cflags="-fopenmp -I/opt/intel/oneapi/ipp/latest/include/ipp" \
-    --extra-ldflags=-fopenmp \
     --enable-gpl \
     --enable-libx264 \
     --enable-libx265 \
     --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi' \
+    --extra-cflags='-fopenmp -I/opt/intel/oneapi/ipp/latest/include/ipp' \
+    --extra-ldflags='-fopenmp' \
     --enable-cross-compile
 make clean
-make -j "$(nproc)"
-make install
+make -j"$(nproc)"
+sudo -E make install
 popd
 
 cp -r "${raisr_path}/filters"* .

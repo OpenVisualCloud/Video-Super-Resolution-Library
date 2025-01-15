@@ -3,3 +3,9 @@
 ./license*
 ./test*
 *Dockerfile*
+.github/**
+.vscode**
+./_build/*
+./build/*
+./docs*
+./_install*

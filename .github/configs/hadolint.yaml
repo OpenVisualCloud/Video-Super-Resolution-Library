@@ -1,0 +1,16 @@
+ignored:
+  - DL3002 # DL3002 Last user should not be root.
+  - DL3006 # DL3006 Always tag the version of an image explicitly
+  - DL3008 # DL3008⁠ Pin versions in apt-get install.
+  - DL3013 # DL3013 Pin versions in pip.
+  - DL3016 # DL3016 Pin versions in npm.
+  - DL3018 # DL3018 Pin versions in apk add. Instead of apk add <package> use apk add <package>=<version>.
+  - DL3028 # DL3028 Pin versions in gem install. Instead of gem install <gem> use gem install <gem>:<version>.
+  - DL3033 # DL3033 warning: Specify version with `yum install -y <package>-<version>`.
+  - SC2086 # SC2086 Double quote to prevent globbing and word splitting.
+  - SC2267 # SC2267 info: GNU xargs -i is deprecated in favor of -I{}
+trustedRegistries:
+  - docker.io
+  - gcr.io
+  - ghcr.io
+  - quay.io
