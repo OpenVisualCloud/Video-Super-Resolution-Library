@@ -9,9 +9,16 @@ on:
     - cron: '15 0 * * *'
 
 env:
+  TZ: "Europe/Warsaw"
   BUILD_TYPE: "Release"
-  PREFIX_DIR: /usr/local
   DEBIAN_FRONTEND: "noninteractive"
+  FFMPEG_COMMIT_ID: "n6.1.1"
+  BUILD_DIR: "${{ github.workspace }}/build"
+  PREFIX: "${{ github.workspace }}/_install"
+
+defaults:
+  run:
+    shell: bash
 
 permissions:
   contents: read
@@ -32,9 +39,6 @@ jobs:
     permissions:
       actions: read
       security-events: write
-    defaults:
-      run:
-        shell: bash
     steps:
     - name: 'Harden Runner'
       uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -44,19 +48,43 @@ jobs:
     - name: 'Checkout repository'
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-    - name: 'Get RAISR prerequisites and set-up git'
+    - name: 'Install OS level dependencies'
       run: |
-        sudo apt update -y
-        sudo apt install -y sudo git wget curl pkg-config bash tar zip unzip make
-        mkdir -p "${{ github.workspace }}/build"
-        git config --global user.email "you@example.com"
-        git config --global user.name "Your Name"
+        set -exo pipefail && \
+        mkdir -p "${PREFIX}" "${BUILD_DIR}/ffmpeg" && \
+        sudo apt-get update --fix-missing && \
+        sudo apt-get full-upgrade -y && \
+        sudo apt-get install --no-install-recommends -y \
+          build-essential \
+          ca-certificates \
+          cmake \
+          diffutils \
+          gpg \
+          libx264-dev \
+          libx265-dev \
+          llvm \
+          m4 \
+          meson \
+          nasm \
+          ocl-icd-opencl-dev \
+          opencl-headers \
+          zlib1g-dev \
+          make curl git sudo tar unzip wget yasm && \
 
-    - name: 'Build RAISR prerequisites and install'
-      working-directory: "${{ github.workspace }}/build"
+    - name: 'Install Intel OneAPI APT repository'
       run: |
-        "${{ github.workspace }}/scripts/01_pull_resources.sh"
-        "${{ github.workspace }}/scripts/02_install_prerequisites.sh" "${{ github.workspace }}/build/raisr.tar.gz"
+        set -exo pipefail && \
+        curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg && \
+        echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/intel-oneAPI.list && \
+        sudo apt-get update --fix-missing && \
+        sudo apt-get install --no-install-recommends -y intel-oneapi-ipp-devel-2022.0
+
+    - name: 'Download and patch ffmpeg repository'
+      run: |
+        set -eo pipefail && \
+        curl -Lf https://github.com/ffmpeg/ffmpeg/archive/${FFMPEG_COMMIT_ID}.tar.gz | tar -zx --strip-components=1 -C "${BUILD_DIR}/ffmpeg"
+        patch -d "${BUILD_DIR}/ffmpeg" -p1 -i <(cat "${{ github.workspace }}/ffmpeg/"*.patch)
+        cp "${{ github.workspace }}/ffmpeg/vf_raisr"*.c "${BUILD_DIR}/ffmpeg/libavfilter"
 
     - name: 'Initialize CodeQL action'
       uses: github/codeql-action/init@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11
@@ -64,10 +92,8 @@ jobs:
         languages: "c-cpp"
         config-file: "${{ github.workspace }}/.github/codeql/codeql-config.yml"
 
-    - name: 'Build RAISR source library'
-      working-directory: "${{ github.workspace }}/build"
-      run: |
-        "${{ github.workspace }}/scripts/03_build_raisr_ffmpeg.sh" "${{ github.workspace }}/build/raisr/Video-Super-Resolution-Library"
+    - name: 'Build RAISR from source code'
+      run: '${{ github.workspace }}/build.sh -DENABLE_RAISR_OPENCL=ON'
 
     - name: 'Perform CodeQL Analysis'
       uses: github/codeql-action/analyze@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11

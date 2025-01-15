@@ -87,13 +87,16 @@ jobs:
       working-directory: "${BUILD_DIR}/ffmpeg"
       run: |
         ./configure \
+          --disable-debug \
+          --disable-doc \
           --enable-libipp \
-          --extra-cflags=-fopenmp \
-          --extra-ldflags=-fopenmp \
+          --enable-static \
           --enable-gpl \
           --enable-libx264 \
           --enable-libx265 \
           --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm -lintlc -lsvml' \
+          --extra-cflags='-fopenmp -I/opt/intel/oneapi/ipp/latest/include/ipp/' \
+          --extra-ldflags='-fopenmp -L/opt/intel/oneapi/ipp/latest/lib' \
           --enable-cross-compile \
           --prefix="${PREFIX}"  && \
         make clean && \

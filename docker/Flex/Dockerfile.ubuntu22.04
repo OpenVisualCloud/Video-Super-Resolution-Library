@@ -5,7 +5,8 @@
 
 # se Ubuntu 22.04 with Intel IPP
 ARG IMAGE_CACHE_REGISTRY=docker.io
-ARG IMAGE_NAME=intel/oneapi-basekit:2023.2.1-devel-ubuntu22.04
+ARG IMAGE_NAME=library/ubuntu:22.04@sha256:adbb90115a21969d2fe6fa7f9af4253e16d45f8d4c1e930182610c4731962658
+# ARG IMAGE_NAME=intel/oneapi-basekit:2023.2.1-devel-ubuntu22.04
 FROM ${IMAGE_CACHE_REGISTRY}/${IMAGE_NAME} AS build
 
 ARG SVT_AV1_VER=v2.1.2
@@ -37,22 +38,34 @@ ENV TZ="Europe/Warsaw"
 # Update apt and install dependances
 SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
 WORKDIR ${PREFIX}
-RUN rm /etc/apt/sources.list.d/oneAPI.list && \
+RUN rm -f /etc/apt/sources.list.d/oneAPI.list && \
     apt-get update --fix-missing && \
     apt-get full-upgrade -y && \
     apt-get install --no-install-recommends -y \
+      autoconf \
+      automake \
+      build-essential \
       ca-certificates \
-      automake libdrm-dev libtool libx11-dev libxext-dev libxfixes-dev libwayland-dev \
+      clang \
       cmake \
-      curl \
-      libx265-dev \
-      libx264-dev \
-      zlib1g-dev \
-      nasm \
-      opencl-headers \
+      diffutils \
+      g++ \
+      gcc gcc-multilib gpg \
+      libdrm-dev libtool libx11-dev libxext-dev libxfixes-dev \
+      libwayland-dev libpciaccess-dev libx264-dev libx265-dev \
+      llvm m4 meson nasm \
       ocl-icd-opencl-dev \
-      libpciaccess-dev \
-      yasm && \
+      opencl-headers \
+      pkg-config \
+      python3-pyelftools \
+      systemtap-sdt-dev \
+      ubuntu-drivers-common \
+      zlib1g-dev \
+      make curl git sudo tar unzip wget yasm && \
+    curl -fsSL "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB" | gpg --dearmor > "/usr/share/keyrings/oneapi-archive-keyring.gpg" && \
+    echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" > "/etc/apt/sources.list.d/intel-oneAPI.list" && \
+    apt-get update --fix-missing && \
+    apt-get install --no-install-recommends -y intel-oneapi-ipp-devel-2022.0 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -117,19 +130,23 @@ RUN curl -Lf "${FFMPEG_REPO}" | \
 
 # Configure and build ffmpeg
 WORKDIR ${DL_PREFIX}/ffmpeg
+# RUN ./configure --disable-shared \
 RUN ./configure \
+      --disable-debug \
+      --disable-doc \
+      --enable-static \
       --enable-libipp \
-      --extra-cflags=-fopenmp \
-      --extra-ldflags=-fopenmp \
       --enable-gpl \
       --enable-libx264 \
       --enable-libx265 \
-      --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm -lintlc -lsvml' \
-      --enable-cross-compile  \
       --enable-opencl \
       --enable-vaapi \
       --enable-libsvtav1 \
       --enable-libvpx \
+      --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm -lintlc -lsvml' \
+      --extra-cflags='-fopenmp -I/opt/intel/oneapi/ipp/latest/include/ipp/' \
+      --extra-ldflags='-fopenmp -L/opt/intel/oneapi/ipp/latest/lib' \
+      --enable-cross-compile  \
       --prefix="${PREFIX}"  && \
     make clean && \
     make -j"$(nproc)" && \
@@ -191,7 +208,7 @@ RUN apt-get update --fix-missing && \
     apt-get install --no-install-recommends -y \
       intel-opencl-icd \
       intel-level-zero-gpu \
-      intel-oneapi-ipp && \
+      intel-oneapi-ipp-2022.0 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     ln -s /usr/bin/ffmpeg /opt/raisrfolder/ffmpeg && \
@@ -199,7 +216,6 @@ RUN apt-get update --fix-missing && \
     curl -Lf https://github.com/arut/nginx-rtmp-module/archive/refs/heads/master.tar.gz | tar xz --strip-components=1 -C "/opt/nginx-rtmp-module" && \
     curl -Lf http://nginx.org/download/nginx-1.24.0.tar.gz | tar xz --strip-components=1 -C "/opt/nginx" && \
     ldconfig
-
 
 # Install ngnix and run ffmpeg to verify that the raisr filter is supported
 WORKDIR /opt/nginx
