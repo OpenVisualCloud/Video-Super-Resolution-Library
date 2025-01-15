@@ -95,11 +95,12 @@ RUN apt-get update --fix-missing && \
       ca-certificates \
       libx264-1* \
       libx265-1* && \
-      apt-get clean && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -g 2110 vfio && \
-    useradd -m -s /bin/bash -G vfio -u 1002 raisr && \
-    usermod -aG sudo raisr
+    useradd -m -s /bin/bash -G vfio -u 2610 raisr && \
+    usermod -aG sudo raisr && \
+    passwd -d raisr
 
 COPY --chown=raisr:raisr filters_1.5x /opt/raisrfolder/filters_1.5x
 COPY --chown=raisr:raisr filters_2x   /opt/raisrfolder/filters_2x
@@ -113,5 +114,5 @@ USER "raisr"
 HEALTHCHECK --interval=30s --timeout=5s CMD ps aux | grep "ffmpeg" || exit 1
 
 SHELL ["/bin/bash", "-c"]
-CMD ["-h", "filter=raisr"]
+CMD ["-buildconf"]
 ENTRYPOINT [ "/opt/raisrfolder/ffmpeg" ]

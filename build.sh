@@ -4,7 +4,7 @@
 # Copyright 2024-2025 Intel Corporation
 
 # Fails the script if any of the commands error (Other than if and some others)
-set -ex -o pipefail
+set -e -o pipefail
 
 SCRIPT_DIR="$(readlink -f "$(dirname -- "${BASH_SOURCE[0]}")")"
 REPOSITORY_DIR="$(readlink -f "${SCRIPT_DIR}")"
@@ -14,6 +14,11 @@ nproc="${nproc:-$(nproc)}"
 
 # Env variable BUILD_TYPE can be one off: RelWithDebInfo, Release, Debug
 BUILD_TYPE="${BUILD_TYPE:-Release}"
+
+CMAKE_C_FLAGS=" -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp ${CMAKE_C_FLAGS}"
+CMAKE_CXX_FLAGS=" -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp ${CMAKE_CXX_FLAGS}"
+CMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;${CMAKE_LIBRARY_PATH}"
+LDFLAGS="${LDFLAGS} -L/opt/intel/oneapi/ipp/latest/lib -L${PREFIX}/lib "
 
 # Helpful when copying and pasting functions and debuging.
 if printf '%s' "$0" | grep -q '\.sh'; then
@@ -84,10 +89,10 @@ function check_executable()
 
 if check_executable icpx; then
     CXX=$(check_executable -p icpx)
-elif check_executable clang++; then
-    CXX=$(check_executable -p clang++)
 elif check_executable g++; then
     CXX=$(check_executable -p g++)
+elif check_executable clang++; then
+    CXX=$(check_executable -p clang++)
 else
     log_error "No suitable cpp compiler found in path."
     log_error "Please either install one or set it via cxx=*"

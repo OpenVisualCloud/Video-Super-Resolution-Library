@@ -69,7 +69,7 @@ jobs:
           ocl-icd-opencl-dev \
           opencl-headers \
           zlib1g-dev \
-          make curl git sudo tar unzip wget yasm && \
+          make curl git sudo tar unzip wget yasm
 
     - name: 'Install Intel OneAPI APT repository'
       run: |
@@ -81,7 +81,7 @@ jobs:
 
     - name: 'Download and patch ffmpeg repository'
       run: |
-        set -eo pipefail && \
+        set -exo pipefail && \
         curl -Lf https://github.com/ffmpeg/ffmpeg/archive/${FFMPEG_COMMIT_ID}.tar.gz | tar -zx --strip-components=1 -C "${BUILD_DIR}/ffmpeg"
         patch -d "${BUILD_DIR}/ffmpeg" -p1 -i <(cat "${{ github.workspace }}/ffmpeg/"*.patch)
         cp "${{ github.workspace }}/ffmpeg/vf_raisr"*.c "${BUILD_DIR}/ffmpeg/libavfilter"
@@ -93,7 +93,11 @@ jobs:
         config-file: "${{ github.workspace }}/.github/codeql/codeql-config.yml"
 
     - name: 'Build RAISR from source code'
-      run: '${{ github.workspace }}/build.sh -DENABLE_RAISR_OPENCL=ON'
+      run: |
+        "${{ github.workspace }}/build.sh" -DENABLE_RAISR_OPENCL=ON \
+          -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" \
+          -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" \
+          -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
 
     - name: 'Perform CodeQL Analysis'
       uses: github/codeql-action/analyze@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11

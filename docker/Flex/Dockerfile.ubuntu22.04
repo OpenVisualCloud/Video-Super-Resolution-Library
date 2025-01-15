@@ -29,9 +29,8 @@ ARG FFMPEG_REPO=https://github.com/ffmpeg/ffmpeg/archive/${FFMPEG_VER}.tar.gz
 
 ARG PREFIX=/opt/build
 ARG DL_PREFIX=/opt
-
-ENV LD_LIBRARY_PATH="/opt/build/lib:/opt/build/lib64:$LD_LIBRARY_PATH"
-ENV PKG_CONFIG_PATH="/opt/build/lib/pkgconfig:$PKG_CONFIG_PATH"
+ENV LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:${PREFIX}/lib:${PREFIX}/lib64:/usr/lib:/usr/local/lib:/usr/local/lib64"
+ENV PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH"
 ENV DEBIAN_FRONTEND="noninteractive"
 ENV TZ="Europe/Warsaw"
 
@@ -120,43 +119,46 @@ RUN curl -Lf "${MEDIA_DRIVER_REPO}" | tar xz --strip-components=1 -C "${DL_PREFI
 
 WORKDIR ${DL_PREFIX}/Video-Super-Resolution-Library
 COPY . ${DL_PREFIX}/Video-Super-Resolution-Library
-RUN ./build.sh -DENABLE_RAISR_OPENCL=ON
+RUN ./build.sh -DENABLE_RAISR_OPENCL=ON \
+      -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" \
+      -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" \
+      -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
 
 WORKDIR ${DL_PREFIX}/ffmpeg
 RUN curl -Lf "${FFMPEG_REPO}" | \
       tar -zx --strip-components=1 -C "${DL_PREFIX}/ffmpeg" && \
-    git -C "${DL_PREFIX}/ffmpeg" apply --whitespace=fix "${DL_PREFIX}/Video-Super-Resolution-Library/ffmpeg/"*.patch && \
+    patch -d "${DL_PREFIX}/ffmpeg" -p1 -i <(cat "${DL_PREFIX}/Video-Super-Resolution-Library/ffmpeg/"*.patch) && \
 	  cp "${DL_PREFIX}/Video-Super-Resolution-Library/ffmpeg/vf_raisr"*.c "${DL_PREFIX}/ffmpeg/libavfilter"
 
 # Configure and build ffmpeg
 WORKDIR ${DL_PREFIX}/ffmpeg
-# RUN ./configure --disable-shared \
 RUN ./configure \
-      --disable-debug \
-      --disable-doc \
-      --enable-static \
-      --enable-libipp \
-      --enable-gpl \
+      --disable-shared \
+      --disable-debug  \
+      --disable-doc    \
+      --enable-static  \
+      --enable-libipp  \
+      --enable-gpl     \
       --enable-libx264 \
       --enable-libx265 \
-      --enable-opencl \
-      --enable-vaapi \
+      --enable-opencl  \
+      --enable-vaapi   \
       --enable-libsvtav1 \
-      --enable-libvpx \
-      --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm -lintlc -lsvml' \
-      --extra-cflags='-fopenmp -I/opt/intel/oneapi/ipp/latest/include/ipp/' \
-      --extra-ldflags='-fopenmp -L/opt/intel/oneapi/ipp/latest/lib' \
-      --enable-cross-compile  \
-      --prefix="${PREFIX}"  && \
+      --enable-libvpx    \
+      --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
+      --extra-cflags='-fopenmp -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp' \
+      --extra-ldflags="-fopenmp -L/opt/intel/oneapi/ipp/latest/lib -L${PREFIX}/lib" \
+      --enable-cross-compile \
+      --prefix="${PREFIX}" && \
     make clean && \
     make -j"$(nproc)" && \
     make install
 
-# cleanup
+# # cleanup
 WORKDIR ${PREFIX}
-RUN mkdir -p "${PREFIX}/usr/lib" && \
-    ldd "${PREFIX}/bin/ffmpeg" | cut -d ' ' -f 3 | xargs -i cp {} "${PREFIX}/usr/lib/" && \
-    LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:${PREFIX}/usr/lib:/usr/local/lib:/usr/local/lib64" /opt/build/bin/ffmpeg -buildconf && \
+RUN mkdir -p "${PREFIX}/usr/lib" "${PREFIX}/usr/local" && \
+    LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:${PREFIX}/lib" ldd "${PREFIX}/bin/ffmpeg" | cut -d ' ' -f 3 | xargs -i cp {} "${PREFIX}/usr/lib/" && \
+    LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:${PREFIX}/usr/lib" "${PREFIX}/bin/ffmpeg" -buildconf && \
     mv "${PREFIX}/bin" "${PREFIX}/usr/bin" && \
     mv "${PREFIX}/lib" "${PREFIX}/usr/local/"
 
@@ -172,18 +174,12 @@ LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.vendor="Intel® Corporation"
 LABEL org.opencontainers.image.licenses="BSD 3-Clause License"
 
-ENV LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib/intel64:/usr/local/lib:/usr/local/lib64"
+ENV LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:/usr/local/lib:/usr/local/lib64:/usr/lib"
 ENV LIBVA_DRIVERS_PATH=/usr/local/lib/dri
 
 SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
 
 WORKDIR /opt/raisrfolder
-COPY --from=build /opt/build /
-COPY ./filters_1.5x/ /opt/raisrfolder/filters_1.5x/
-COPY ./filters_2x/ /opt/raisrfolder/filters_2x/
-
-COPY docker/Flex/nginx.conf /usr/local/nginx/conf/nginx.conf.copy
-
 RUN apt-get update --fix-missing && \
     apt-get full-upgrade -y && \
     apt-get install --no-install-recommends -y \
@@ -200,7 +196,14 @@ RUN apt-get update --fix-missing && \
       gcc \
       zlib1g-dev \
       make && \
-    curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -g 2110 vfio && \
+    useradd -m -s /bin/bash -G vfio -u 2610 raisr && \
+    usermod -aG sudo raisr && \
+    passwd -d raisr
+
+RUN curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
     curl -fsSL https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor | tee /usr/share/keyrings/intel-graphics-archive-keyring.gpg > /dev/null && \
     echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/intel-oneAPI.list && \
     echo "deb [signed-by=/usr/share/keyrings/intel-graphics-archive-keyring.gpg arch=amd64] https://repositories.intel.com/graphics/ubuntu jammy flex" > /etc/apt/sources.list.d/intel-graphics.list && \
@@ -211,11 +214,14 @@ RUN apt-get update --fix-missing && \
       intel-oneapi-ipp-2022.0 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    ln -s /usr/bin/ffmpeg /opt/raisrfolder/ffmpeg && \
-    mkdir -p /opt/nginx /opt/nginx-rtmp-module && \
+    mkdir -p "/opt/nginx" "/opt/nginx-rtmp-module" && \
     curl -Lf https://github.com/arut/nginx-rtmp-module/archive/refs/heads/master.tar.gz | tar xz --strip-components=1 -C "/opt/nginx-rtmp-module" && \
-    curl -Lf http://nginx.org/download/nginx-1.24.0.tar.gz | tar xz --strip-components=1 -C "/opt/nginx" && \
-    ldconfig
+    curl -Lf http://nginx.org/download/nginx-1.24.0.tar.gz | tar xz --strip-components=1 -C "/opt/nginx"
+
+COPY --from=build /opt/build /
+COPY ./filters_1.5x/ /opt/raisrfolder/filters_1.5x/
+COPY ./filters_2x/ /opt/raisrfolder/filters_2x/
+COPY docker/Flex/nginx.conf /usr/local/nginx/conf/nginx.conf.copy
 
 # Install ngnix and run ffmpeg to verify that the raisr filter is supported
 WORKDIR /opt/nginx
@@ -224,10 +230,15 @@ RUN ./configure --with-http_ssl_module --add-module=../nginx-rtmp-module && \
     make install && \
     rm -rf nginx-rtmp-module nginx && \
     cp -f /usr/local/nginx/conf/nginx.conf.copy /usr/local/nginx/conf/nginx.conf && \
+    ln -s /usr/bin/ffmpeg /opt/raisrfolder/ffmpeg && \
+    ldconfig && \
     ffmpeg -buildconf && \
     ffmpeg -h filter=raisr
 
 WORKDIR /opt/raisrfolder
-SHELL ["/bin/bash", "-c"]
-CMD ["-h", "filter=raisr"]
+USER "raisr"
+
+SHELL [ "/bin/bash", "-c" ]
+CMD [ "-buildconf" ]
 ENTRYPOINT [ "/opt/raisrfolder/ffmpeg" ]
+HEALTHCHECK --interval=30s --timeout=5s CMD ps aux | grep "ffmpeg" || exit 1

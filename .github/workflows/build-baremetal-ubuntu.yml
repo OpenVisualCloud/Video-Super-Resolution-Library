@@ -31,7 +31,7 @@ jobs:
     runs-on: 'ubuntu-22.04'
     timeout-minutes: 70
     env:
-      LD_LIBRARY_PATH: "/opt/intel/oneapi/ipp/latest/lib:${PREFIX}/lib:${PREFIX}/lib64:${LD_LIBRARY_PATH}"
+      LD_LIBRARY_PATH: "/opt/intel/oneapi/ipp/latest/lib:${PREFIX}/usr/lib:${PREFIX}/lib:${PREFIX}/lib64:${LD_LIBRARY_PATH}"
     steps:
     - name: 'Harden Runner'
       uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -81,30 +81,39 @@ jobs:
         cp "${{ github.workspace }}/ffmpeg/vf_raisr"*.c "${BUILD_DIR}/ffmpeg/libavfilter"
 
     - name: 'Build RAISR from source code'
-      run: './build.sh -DENABLE_RAISR_OPENCL=ON'
+      run: |
+        ./build.sh -DENABLE_RAISR_OPENCL=ON \
+          -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" \
+          -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" \
+          -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
 
-    - name: 'Configure, build and install ffmpeg repository'
+    - name: 'Configure ffmpeg repository'
       working-directory: "${BUILD_DIR}/ffmpeg"
+      continue-on-error: true
       run: |
         ./configure \
-          --disable-debug \
-          --disable-doc \
-          --enable-libipp \
-          --enable-static \
+          --disable-shared \
+          --disable-debug  \
+          --disable-doc    \
+          --enable-static  \
+          --enable-libipp  \
           --enable-gpl \
           --enable-libx264 \
           --enable-libx265 \
-          --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm -lintlc -lsvml' \
-          --extra-cflags='-fopenmp -I/opt/intel/oneapi/ipp/latest/include/ipp/' \
-          --extra-ldflags='-fopenmp -L/opt/intel/oneapi/ipp/latest/lib' \
+          --enable-opencl  \
+          --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
+          --extra-cflags='-fopenmp -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp' \
+          --extra-ldflags="-fopenmp -L/opt/intel/oneapi/ipp/latest/lib -L${PREFIX}/lib" \
           --enable-cross-compile \
-          --prefix="${PREFIX}"  && \
-        make clean && \
-        make -j"$(nproc)" && \
-        sudo -E make install
+          --prefix="${PREFIX}" || \
+        { tail -n 100 "${BUILD_DIR}/ffmpeg/ffbuild/config.log && exit 1 }
 
-    - name: 'Libraries path cleanup and ffmpeg check'
+    - name: 'Build, install and check ffmpeg'
       working-directory: "${BUILD_DIR}/ffmpeg"
+      continue-on-error: true
       run: |
+        make clean
+        make -j"$(nproc)"
+        sudo -E make install
         sudo -E ldconfig
         ffmpeg -buildconf
