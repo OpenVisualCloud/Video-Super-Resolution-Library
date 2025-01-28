@@ -9,8 +9,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  packages: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -20,6 +18,9 @@ jobs:
   flex-ubuntu-2204-build:
     name: "Build Flex Ubuntu 22.04 Docker Image"
     uses: ./.github/workflows/template-docker-cached-build.yml
+    permissions:
+      security-events: write
+      packages: write
     with:
       docker_file_path:  "docker/Flex/Dockerfile.ubuntu22.04"
       docker_image_name: "raisr-flex-ubuntu-22.04"
@@ -27,6 +28,9 @@ jobs:
   xeon-ubuntu-1804-build:
     name: "Build Xeon Ubuntu 18.04 Docker Image"
     uses: ./.github/workflows/template-docker-cached-build.yml
+    permissions:
+      security-events: write
+      packages: write
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.ubuntu18.04"
       docker_image_name: "raisr-xeon-ubuntu-18.04"
@@ -34,6 +38,9 @@ jobs:
   xeon-ubuntu-2004-build:
     name: "Build Xeon Ubuntu 20.04 Docker Image"
     uses: ./.github/workflows/template-docker-cached-build.yml
+    permissions:
+      security-events: write
+      packages: write
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.ubuntu20.04"
       docker_image_name: "raisr-xeon-ubuntu-20.04"
@@ -41,6 +48,9 @@ jobs:
   xeon-ubuntu-2204-build:
     name: "Build Xeon Ubuntu 22.04 Docker Image"
     uses: ./.github/workflows/template-docker-cached-build.yml
+    permissions:
+      security-events: write
+      packages: write
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.ubuntu22.04"
       docker_image_name: "raisr-xeon-ubuntu-22.04"
@@ -48,6 +58,9 @@ jobs:
   xeon-centos-stream9-build:
     name: "Build Xeon Centos Stream9 Docker Image"
     uses: ./.github/workflows/template-docker-cached-build.yml
+    permissions:
+      security-events: write
+      packages: write
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.centos9"
       docker_image_name: "raisr-xeon-centos-9"
@@ -55,6 +68,9 @@ jobs:
   xeon-rockylinux-9-mini-build:
     name: "Build Xeon Rockylinux 9-mini Docker Image"
     uses: ./.github/workflows/template-docker-cached-build.yml
+    permissions:
+      security-events: write
+      packages: write
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.rockylinux9-mini"
       docker_image_name: "raisr-xeon-rockylinux-9-mini"
