@@ -106,7 +106,7 @@ jobs:
           --extra-ldflags="-fopenmp -L/opt/intel/oneapi/ipp/latest/lib -L${PREFIX}/lib" \
           --enable-cross-compile \
           --prefix="${PREFIX}" || \
-        { tail -n 100 "${BUILD_DIR}/ffmpeg/ffbuild/config.log" && exit 1 }
+        { tail -n 100 "${BUILD_DIR}/ffmpeg/ffbuild/config.log" && exit 1; }
 
     - name: 'Build, install and check ffmpeg'
       working-directory: "ffmpeg"
