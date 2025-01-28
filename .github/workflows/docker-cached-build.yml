@@ -7,9 +7,6 @@ on:
     branches: [ "main", "dev" ]
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
@@ -21,6 +18,7 @@ jobs:
     permissions:
       security-events: write
       packages: write
+      contents: read
     with:
       docker_file_path:  "docker/Flex/Dockerfile.ubuntu22.04"
       docker_image_name: "raisr-flex-ubuntu-22.04"
@@ -31,6 +29,7 @@ jobs:
     permissions:
       security-events: write
       packages: write
+      contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.ubuntu18.04"
       docker_image_name: "raisr-xeon-ubuntu-18.04"
@@ -41,6 +40,7 @@ jobs:
     permissions:
       security-events: write
       packages: write
+      contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.ubuntu20.04"
       docker_image_name: "raisr-xeon-ubuntu-20.04"
@@ -51,6 +51,7 @@ jobs:
     permissions:
       security-events: write
       packages: write
+      contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.ubuntu22.04"
       docker_image_name: "raisr-xeon-ubuntu-22.04"
@@ -61,6 +62,7 @@ jobs:
     permissions:
       security-events: write
       packages: write
+      contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.centos9"
       docker_image_name: "raisr-xeon-centos-9"
@@ -71,6 +73,7 @@ jobs:
     permissions:
       security-events: write
       packages: write
+      contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.rockylinux9-mini"
       docker_image_name: "raisr-xeon-rockylinux-9-mini"
