@@ -33,9 +33,6 @@ jobs:
     runs-on: 'ubuntu-22.04'
     permissions:
       contents: read
-      packages: read
-      actions: read
-      security-events: write
     timeout-minutes: 90
     env:
       SUPER_LINTER_OUTPUT_DIRECTORY_NAME: super-linter-output
