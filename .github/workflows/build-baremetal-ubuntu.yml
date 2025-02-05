@@ -13,6 +13,7 @@ env:
   DEBIAN_FRONTEND: "noninteractive"
   FFMPEG_COMMIT_ID: "n6.1.1"
   BUILD_DIR: "${{ github.workspace }}/build"
+  BUILD_FFMPEG_DIR: "${{ github.workspace }}/build-ffmpeg"
   PREFIX: "${{ github.workspace }}/_install"
 
 defaults:
@@ -44,7 +45,7 @@ jobs:
     - name: 'Install OS level dependencies'
       run: |
         set -exo pipefail && \
-        mkdir -p "${PREFIX}" "${BUILD_DIR}/ffmpeg" && \
+        mkdir -p "${PREFIX}" "${BUILD_DIR}" "${BUILD_FFMPEG_DIR}" && \
         sudo apt-get update --fix-missing && \
         sudo apt-get full-upgrade -y && \
         sudo apt-get install --no-install-recommends -y \
@@ -76,9 +77,9 @@ jobs:
     - name: 'Download and patch ffmpeg repository'
       run: |
         set -eo pipefail && \
-        curl -Lf https://github.com/ffmpeg/ffmpeg/archive/${FFMPEG_COMMIT_ID}.tar.gz | tar -zx --strip-components=1 -C "${BUILD_DIR}/ffmpeg"
-        patch -d "${BUILD_DIR}/ffmpeg" -p1 -i <(cat "${{ github.workspace }}/ffmpeg/"*.patch)
-        cp "${{ github.workspace }}/ffmpeg/vf_raisr"*.c "${BUILD_DIR}/ffmpeg/libavfilter"
+        curl -Lf https://github.com/ffmpeg/ffmpeg/archive/${FFMPEG_COMMIT_ID}.tar.gz | tar -zx --strip-components=1 -C "${BUILD_FFMPEG_DIR}"
+        patch -d "${BUILD_FFMPEG_DIR}" -p1 -i <(cat "${{ github.workspace }}/ffmpeg/"*.patch)
+        cp "${{ github.workspace }}/ffmpeg/vf_raisr"*.c "${BUILD_FFMPEG_DIR}/libavfilter"
 
     - name: 'Build RAISR from source code'
       run: |
@@ -88,9 +89,9 @@ jobs:
           -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
 
     - name: 'Configure ffmpeg repository'
-      working-directory: "ffmpeg"
       continue-on-error: true
       run: |
+        cd "${BUILD_FFMPEG_DIR}"
         ./configure \
           --disable-shared \
           --disable-debug  \
@@ -109,9 +110,9 @@ jobs:
         { tail -n 100 "${BUILD_DIR}/ffmpeg/ffbuild/config.log" && exit 1; }
 
     - name: 'Build, install and check ffmpeg'
-      working-directory: "ffmpeg"
       continue-on-error: true
       run: |
+        cd "${BUILD_FFMPEG_DIR}"
         make clean
         make -j"$(nproc)"
         sudo -E make install
