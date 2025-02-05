@@ -45,7 +45,7 @@ jobs:
     - name: 'Install OS level dependencies'
       run: |
         set -exo pipefail && \
-        mkdir -p "${PREFIX}" "${BUILD_DIR}/ffmpeg" && \
+        mkdir -p "${PREFIX}" "${BUILD_DIR}" "${BUILD_FFMPEG_DIR}" && \
         sudo apt-get update --fix-missing && \
         sudo apt-get full-upgrade -y && \
         sudo apt-get install --no-install-recommends -y \
