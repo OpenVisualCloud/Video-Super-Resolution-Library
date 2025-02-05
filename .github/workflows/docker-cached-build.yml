@@ -7,6 +7,9 @@ on:
     branches: [ "main", "dev" ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
@@ -17,7 +20,6 @@ jobs:
     uses: ./.github/workflows/template-docker-cached-build.yml
     permissions:
       security-events: write
-      packages: write
       contents: read
     with:
       docker_file_path:  "docker/Flex/Dockerfile.ubuntu22.04"
@@ -28,7 +30,6 @@ jobs:
     uses: ./.github/workflows/template-docker-cached-build.yml
     permissions:
       security-events: write
-      packages: write
       contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.ubuntu18.04"
@@ -39,7 +40,6 @@ jobs:
     uses: ./.github/workflows/template-docker-cached-build.yml
     permissions:
       security-events: write
-      packages: write
       contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.ubuntu20.04"
@@ -51,7 +51,6 @@ jobs:
     permissions:
       security-events: write
       packages: write
-      contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.ubuntu22.04"
       docker_image_name: "raisr-xeon-ubuntu-22.04"
@@ -61,7 +60,6 @@ jobs:
     uses: ./.github/workflows/template-docker-cached-build.yml
     permissions:
       security-events: write
-      packages: write
       contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.centos9"
@@ -72,7 +70,6 @@ jobs:
     uses: ./.github/workflows/template-docker-cached-build.yml
     permissions:
       security-events: write
-      packages: write
       contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.rockylinux9-mini"
