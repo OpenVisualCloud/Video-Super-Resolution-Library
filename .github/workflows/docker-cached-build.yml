@@ -50,7 +50,7 @@ jobs:
     uses: ./.github/workflows/template-docker-cached-build.yml
     permissions:
       security-events: write
-      packages: write
+      contents: read
     with:
       docker_file_path:  "docker/Xeon/Dockerfile.ubuntu22.04"
       docker_image_name: "raisr-xeon-ubuntu-22.04"
