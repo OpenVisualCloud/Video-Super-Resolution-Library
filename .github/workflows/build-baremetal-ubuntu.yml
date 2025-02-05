@@ -88,7 +88,7 @@ jobs:
           -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
 
     - name: 'Configure ffmpeg repository'
-      working-directory: "ffmpeg"
+      working-directory: "build/ffmpeg"
       continue-on-error: true
       run: |
         ./configure \
@@ -109,7 +109,7 @@ jobs:
         { tail -n 100 "${BUILD_DIR}/ffmpeg/ffbuild/config.log" && exit 1; }
 
     - name: 'Build, install and check ffmpeg'
-      working-directory: "ffmpeg"
+      working-directory: "build/ffmpeg"
       continue-on-error: true
       run: |
         make clean
