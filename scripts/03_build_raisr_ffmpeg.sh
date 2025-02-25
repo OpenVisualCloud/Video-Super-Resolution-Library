@@ -49,9 +49,10 @@ cp "${raisr_path}/ffmpeg/vf_raisr.c" libavfilter/
 make clean
 make -j"$(nproc)"
 sudo -E make install
-popd
 
+# copy filters to ffmpeg directory
 cp -r "${raisr_path}/filters"* .
+popd
 
 log_info "\tTo run the library you can do the following:"
 log_info
