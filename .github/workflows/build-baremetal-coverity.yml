@@ -1,0 +1,93 @@
+name: scan-coverity-baremetal
+
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run scans on'
+        default: 'main'
+        type: string
+
+env:
+  TZ: "Europe/Warsaw"
+  BUILD_TYPE: "Release"
+  DEBIAN_FRONTEND: "noninteractive"
+  FFMPEG_COMMIT_ID: "n6.1.1"
+  BUILD_DIR: "${{ github.workspace }}/build"
+  BUILD_FFMPEG_DIR: "${{ github.workspace }}/build-ffmpeg"
+  PREFIX: "${{ github.workspace }}/_install"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  coverity:
+    runs-on: 'ubuntu-22.04'
+    timeout-minutes: 90
+    steps:
+    - name: 'Harden Runner'
+      uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+      with:
+        egress-policy: audit
+
+    - name: 'Checkout repository'
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        ref: ${{ inputs.branch }}
+
+    - name: 'Install OS level dependencies'
+      run: |
+        set -exo pipefail && \
+        mkdir -p "${PREFIX}" "${BUILD_DIR}" "${BUILD_FFMPEG_DIR}" && \
+        sudo apt-get update --fix-missing && \
+        sudo apt-get full-upgrade -y && \
+        sudo apt-get install --no-install-recommends -y \
+          build-essential \
+          ca-certificates \
+          cmake \
+          curl \
+          diffutils \
+          git \
+          gpg \
+          libx264-dev \
+          libx265-dev \
+          nasm \
+          ocl-icd-opencl-dev \
+          opencl-headers \
+          tar \
+          unzip \
+          wget \
+          zlib1g-dev
+
+    - name: 'Install Intel OneAPI APT repository'
+      run: |
+        set -exo pipefail && \
+        curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg && \
+        echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/intel-oneAPI.list && \
+        sudo apt-get update --fix-missing && \
+        sudo apt-get install --no-install-recommends -y intel-oneapi-ipp-devel-2022.0
+
+    - name: 'Run coverity'
+      uses: vapier/coverity-scan-action@2068473c7bdf8c2fb984a6a40ae76ee7facd7a85 # v1.8.0
+      with:
+        project: 'Video-Super-Resolution-Library'
+        email: ${{ secrets.COVERITY_SCAN_EMAIL }}
+        token: ${{ secrets.COVERITY_SCAN_TOKEN }}
+        build_language: 'cxx'
+        build_platform: 'linux64'
+        command: ${{ github.workspace }}/./build.sh -DENABLE_RAISR_OPENCL=ON -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
+
+    - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      with:
+        name: coverity-reports
+        path: '${{ github.workspace }}/cov-int'
