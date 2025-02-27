@@ -80,7 +80,7 @@ jobs:
     - name: 'Run coverity'
       uses: vapier/coverity-scan-action@2068473c7bdf8c2fb984a6a40ae76ee7facd7a85 # v1.8.0
       with:
-        project: 'Intel® Library for Video Super Resolution'
+        project: 'Video-Super-Resolution-Library'
         email: ${{ secrets.COVERITY_SCAN_EMAIL }}
         token: ${{ secrets.COVERITY_SCAN_TOKEN }}
         build_language: 'cxx'
