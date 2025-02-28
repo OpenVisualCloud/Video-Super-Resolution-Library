@@ -133,6 +133,7 @@ static RNLERRORTYPE buildProgram(RaisrOpenCLContext *raisrOpenCLContext,
             ret = RNLErrorBadParameter;
             goto fail;
         }
+        filterShader[programSize] = '\0'; // Ensure null termination after reading
         fclose(programHandle);
         programHandle = NULL;
     } else
