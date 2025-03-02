@@ -81,7 +81,15 @@ if (ENABLE_RAISR_OPENCL)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_RAISR_OPENCL")
 endif()
 
+option( ENABLE_AVX512FP16 "Build AVX512fp16 despite test results" OFF )
+if (ENABLE_AVX512FP16)
+    set(HAVE_AVX512FP16 ON)
+endif()
 
+option( ENABLE_AVX512 "Build AVX512 despite test results" OFF )
+if (ENABLE_AVX512)
+    set(HAVE_AVX512 ON)
+endif()
 # Intel Library for Video Super Resolution
 add_subdirectory(Library)
 
