@@ -85,7 +85,7 @@ jobs:
         token: ${{ secrets.COVERITY_SCAN_TOKEN }}
         build_language: 'cxx'
         build_platform: 'linux64'
-        command: ${{ github.workspace }}/./build.sh -DENABLE_RAISR_OPENCL=ON -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
+        command: ${{ github.workspace }}/./build.sh -DENABLE_RAISR_OPENCL=ON -DENABLE_AVX512FP16=ON -DENABLE_AVX512=ON
 
     - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
       with:
