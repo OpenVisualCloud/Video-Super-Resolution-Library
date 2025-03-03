@@ -86,7 +86,7 @@ jobs:
         build_language: 'cxx'
         build_platform: 'linux64'
         command: |
-          "${{ github.workspace }}/build.sh" -DENABLE_RAISR_OPENCL=ON -DENABLE_AVX512FP16=ON -DENABLE_AVX512=ON \
+          "${{ github.workspace }}/build.sh" -DENABLE_RAISR_OPENCL=ON \
             -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" \
             -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" \
             -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
