@@ -1,3 +1,8 @@
+[![Ubuntu 22.04 Build](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/actions/workflows/build-baremetal-ubuntu.yml/badge.svg)](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/actions/workflows/build-baremetal-ubuntu.yml)
+[![Build Docker Images](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/actions/workflows/docker-cached-build.yml/badge.svg)](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/actions/workflows/docker-cached-build.yml)
+[![Coverity Build](https://scan.coverity.com/projects/31423/badge.svg)](https://scan.coverity.com/projects/video-super-resolution-library)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/OpenVisualCloud/Video-Super-Resolution-Library/badge)](https://securityscorecards.dev/viewer/?uri=github.com/OpenVisualCloud/Video-Super-Resolution-Library)
+
 # Intel® Library for Video Super Resolution (Intel® Library for VSR) README
 Video Super Resolution converts video from low resolution to high resolution using traditional image processing or AI-based methods. Intel Library for Video Super Resolution consist of a few different algorithms including machine learning and deep learning implementations to offer a balance between quality and performance.
 
