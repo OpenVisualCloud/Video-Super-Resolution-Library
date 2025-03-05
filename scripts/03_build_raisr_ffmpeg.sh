@@ -31,12 +31,14 @@ pushd "${raisr_path}"
 sudo -E ./build.sh
 popd
 
+
+# build ffmpeg
+pushd "${raisr_path}/../ffmpeg"
+
 # TO-DO: Remove patch apply from bellow lines:
 # Apply a temporary patch - this will be removed after version of FFmpeg gets updated
 patch -p1 -i "${REPOSITORY_DIR}/scripts/patch/ffmpeg/0001-avcodec-x86-mathops-clip-constants.patch"
 
-# build ffmpeg
-pushd "${raisr_path}/../ffmpeg"
 cp "${raisr_path}/ffmpeg/vf_raisr.c" libavfilter/
 
 ./configure \
