@@ -1,6 +1,15 @@
 # Intel® Library for Video Super Resolution (Intel® Library for VSR) Release Notes
 
-# New and Changed in Release v23.11
+# New and Changed in Release v23.11.1
+
+**v23.11.1**
+
+## New and Changed in v23.11.1
+
+- Build and Integration Improvements: Numerous fixes and updates to build scripts, including Coverity build issues and ffmpeg build patches.
+- Documentation Enhancements: Updates to README and other documentation files to improve clarity and usability.
+- Security and Dependency Management: Introduction of security measures like SECURITY.md and enabling dependabot for automated dependency updates.
+- Performance and Feature Additions: Addition of performance charts, advanced usage sections, and new Dockerfiles for enhanced functionality.
 
 **v23.11**
 
