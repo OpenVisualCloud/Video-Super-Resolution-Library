@@ -122,4 +122,4 @@ Intel, the Intel logo and Xeon are trademarks of Intel Corporation or its subsid
 
 # License
 
-Intel Library for VSR is licensed under the BSD 3-clause license.
+Intel Library for VSR is licensed under the BSD 3-clause license. 
